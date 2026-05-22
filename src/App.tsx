@@ -7,6 +7,7 @@ import type { UserInfo } from '@/types'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import ServiceList from '@/pages/ServiceList'
+import ServiceEdit from '@/pages/ServiceEdit'
 import MainLayout from '@/layouts/MainLayout'
 import '@/styles/global.css'
 
@@ -64,8 +65,8 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'services', element: <ServiceList /> },
-      { path: 'services/create', element: <div>创建服务</div> },
-      { path: 'services/:id', element: <div>编辑服务</div> },
+      { path: 'services/create', element: <ServiceEdit /> },
+      { path: 'services/:id', element: <ServiceEdit /> },
       { path: 'services/:id/logs', element: <div>容器日志</div> },
       { path: 'logs', element: <div>部署日志</div> },
       { path: 'users', element: <div>用户管理</div> },
