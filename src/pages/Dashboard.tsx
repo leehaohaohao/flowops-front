@@ -1,61 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Card, Col, message, Row, Spin, Typography } from 'antd'
-import {
-  CheckCircleOutlined,
-  CloudServerOutlined,
-  RocketOutlined,
-} from '@ant-design/icons'
+import { Card, Col, message, Row, Spin, Statistic, Typography } from 'antd'
+import { CheckCircleOutlined, CloudServerOutlined, RocketOutlined } from '@ant-design/icons'
 import { getDashboardStats } from '@/api/stats'
 import type { DashboardStats } from '@/types'
 
-const { Title, Text } = Typography
-
-interface StatCardProps {
-  title: string
-  value: number | string
-  icon: React.ReactNode
-  color: string
-  bgColor: string
-}
-
-function StatCard({ title, value, icon, color, bgColor }: StatCardProps) {
-  return (
-    <Card
-      bordered={false}
-      style={{
-        borderRadius: 12,
-        boxShadow: '0 1px 2px 0 rgba(0,0,0,0.03), 0 1px 6px -1px rgba(0,0,0,0.02), 0 2px 4px 0 rgba(0,0,0,0.02)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 12,
-            background: bgColor,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 24,
-            color,
-            flexShrink: 0,
-          }}
-        >
-          {icon}
-        </div>
-        <div>
-          <Text type="secondary" style={{ fontSize: 14 }}>
-            {title}
-          </Text>
-          <div style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.2, marginTop: 4 }}>
-            {value ?? '-'}
-          </div>
-        </div>
-      </div>
-    </Card>
-  )
-}
+const { Title } = Typography
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -81,33 +30,34 @@ export default function Dashboard() {
       <Title level={4} style={{ marginBottom: 24 }}>
         仪表盘
       </Title>
-      <Row gutter={[24, 24]}>
+      <Row gutter={[16, 16]}>
         <Col xs={24} sm={8}>
-          <StatCard
-            title="服务总数"
-            value={stats?.totalServices ?? '-'}
-            icon={<CloudServerOutlined />}
-            color="#6366f1"
-            bgColor="#eef2ff"
-          />
+          <Card>
+            <Statistic
+              title="服务总数"
+              value={stats?.totalServices ?? 0}
+              prefix={<CloudServerOutlined />}
+            />
+          </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <StatCard
-            title="运行中"
-            value={stats?.runningServices ?? '-'}
-            icon={<CheckCircleOutlined />}
-            color="#10b981"
-            bgColor="#ecfdf5"
-          />
+          <Card>
+            <Statistic
+              title="运行中"
+              value={stats?.runningServices ?? 0}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#3f8600' }}
+            />
+          </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <StatCard
-            title="部署次数"
-            value={stats?.totalDeploys ?? '-'}
-            icon={<RocketOutlined />}
-            color="#f59e0b"
-            bgColor="#fffbeb"
-          />
+          <Card>
+            <Statistic
+              title="部署次数"
+              value={stats?.totalDeploys ?? 0}
+              prefix={<RocketOutlined />}
+            />
+          </Card>
         </Col>
       </Row>
     </div>

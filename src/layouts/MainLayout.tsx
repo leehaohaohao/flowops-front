@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { Avatar, Button, Layout, Menu, theme } from 'antd'
+import { Button, Layout, Menu } from 'antd'
 import {
   CloudServerOutlined,
   DashboardOutlined,
@@ -31,7 +31,6 @@ export default function MainLayout({
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
-  const { token: themeToken } = theme.useToken()
 
   const selectedKey = '/' + location.pathname.split('/')[1]
 
@@ -55,52 +54,21 @@ export default function MainLayout({
         collapsed={collapsed}
         onCollapse={setCollapsed}
         theme="dark"
-        width={220}
-        style={{
-          background: 'linear-gradient(180deg, #1e1e2e 0%, #181825 100%)',
-          boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
-        }}
+        width={200}
       >
         <div
           style={{
-            height: 64,
+            height: 48,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 10,
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
-            marginBottom: 4,
+            color: '#fff',
+            fontWeight: 600,
+            fontSize: 16,
+            borderBottom: '1px solid rgba(255,255,255,0.1)',
           }}
         >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 16,
-              flexShrink: 0,
-            }}
-          >
-            F
-          </div>
-          {!collapsed && (
-            <span
-              style={{
-                color: '#fff',
-                fontSize: 18,
-                fontWeight: 600,
-                letterSpacing: 1,
-              }}
-            >
-              FlowOps
-            </span>
-          )}
+          {collapsed ? 'F' : 'FlowOps'}
         </div>
         <Menu
           theme="dark"
@@ -108,42 +76,26 @@ export default function MainLayout({
           selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={handleMenuClick}
-          style={{
-            background: 'transparent',
-            borderRight: 'none',
-          }}
         />
       </Sider>
       <Layout>
         <Header
           style={{
             padding: '0 24px',
-            background: themeToken.colorBgContainer,
+            background: '#fff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
-            gap: 12,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-            height: 56,
-            lineHeight: '56px',
+            gap: 16,
+            borderBottom: '1px solid #f0f0f0',
           }}
         >
-          <Avatar
-            size={28}
-            icon={<UserOutlined />}
-            style={{ background: '#667eea' }}
-          />
-          <span style={{ fontWeight: 500 }}>{userInfo.username}</span>
-          <Button
-            type="text"
-            icon={<LogoutOutlined />}
-            onClick={handleLogout}
-            style={{ color: '#666' }}
-          >
+          <span>{userInfo.username}</span>
+          <Button type="link" icon={<LogoutOutlined />} onClick={handleLogout}>
             退出
           </Button>
         </Header>
-        <Content style={{ margin: 24, minHeight: 280 }}>{children}</Content>
+        <Content style={{ margin: 24 }}>{children}</Content>
       </Layout>
     </Layout>
   )
