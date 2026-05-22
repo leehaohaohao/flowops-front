@@ -6,6 +6,7 @@ import { getUserInfo } from '@/api/auth'
 import type { UserInfo } from '@/types'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
+import ServiceList from '@/pages/ServiceList'
 import MainLayout from '@/layouts/MainLayout'
 import '@/styles/global.css'
 
@@ -62,7 +63,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
-      { path: 'services', element: <div>服务管理</div> },
+      { path: 'services', element: <ServiceList /> },
       { path: 'services/create', element: <div>创建服务</div> },
       { path: 'services/:id', element: <div>编辑服务</div> },
       { path: 'services/:id/logs', element: <div>容器日志</div> },

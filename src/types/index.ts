@@ -19,3 +19,15 @@ export interface DashboardStats {
   runningServices: number
   totalDeploys: number
 }
+
+export interface DeployService {
+  id: number
+  name: string
+  port: number
+  volumeDir: string
+  serviceType: 'backend' | 'frontend' | 'fullstack'
+  serviceConfig: string
+  status: 'running' | 'stopped'
+  createTime: string
+  updateTime: string
+}
