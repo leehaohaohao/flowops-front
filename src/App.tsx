@@ -1,122 +1,83 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { createContext, useEffect, useState } from 'react'
+import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom'
+import { App as AntApp, ConfigProvider, Spin } from 'antd'
+import zhCN from 'antd/locale/zh_CN'
+import { getUserInfo } from '@/api/auth'
+import type { UserInfo } from '@/types'
+import Login from '@/pages/Login'
+import Dashboard from '@/pages/Dashboard'
+import MainLayout from '@/layouts/MainLayout'
+import '@/styles/global.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+export const UserContext = createContext<UserInfo | null>(null)
+
+function AuthGuard() {
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      setChecking(false)
+      return
+    }
+
+    getUserInfo()
+      .then((res) => setUserInfo(res.data))
+      .catch(() => {
+        localStorage.removeItem('token')
+      })
+      .finally(() => setChecking(false))
+  }, [])
+
+  if (checking) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  if (!userInfo) {
+    return <Navigate to="/login" replace />
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <UserContext.Provider value={userInfo}>
+      <MainLayout userInfo={userInfo}>
+        <Outlet />
+      </MainLayout>
+    </UserContext.Provider>
   )
 }
 
-export default App
+const router = createBrowserRouter([
+  {
+    path: '/login',
+    element: <Login />,
+  },
+  {
+    path: '/',
+    element: <AuthGuard />,
+    children: [
+      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { path: 'dashboard', element: <Dashboard /> },
+      { path: 'services', element: <div>服务管理</div> },
+      { path: 'services/create', element: <div>创建服务</div> },
+      { path: 'services/:id', element: <div>编辑服务</div> },
+      { path: 'services/:id/logs', element: <div>容器日志</div> },
+      { path: 'logs', element: <div>部署日志</div> },
+      { path: 'users', element: <div>用户管理</div> },
+    ],
+  },
+])
+
+export default function App() {
+  return (
+    <ConfigProvider locale={zhCN}>
+      <AntApp>
+        <RouterProvider router={router} />
+      </AntApp>
+    </ConfigProvider>
+  )
+}
