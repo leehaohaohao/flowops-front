@@ -46,7 +46,7 @@ export default function Dashboard() {
               title="运行中"
               value={stats?.runningServices ?? 0}
               prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#3f8600' }}
+              styles={{ content: { color: '#3f8600' } }}
             />
           </Card>
         </Col>
