@@ -1,5 +1,5 @@
 import { createContext, useEffect, useState } from 'react'
-import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom'
+import { createHashRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom'
 import { App as AntApp, ConfigProvider, Spin } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import { getUserInfo } from '@/api/auth'
@@ -8,6 +8,9 @@ import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import ServiceList from '@/pages/ServiceList'
 import ServiceEdit from '@/pages/ServiceEdit'
+import UserList from '@/pages/UserList'
+import DeployLogs from '@/pages/DeployLogs'
+import ContainerLogs from '@/pages/ContainerLogs'
 import MainLayout from '@/layouts/MainLayout'
 import '@/styles/global.css'
 
@@ -53,7 +56,7 @@ function AuthGuard() {
   )
 }
 
-const router = createBrowserRouter([
+const router = createHashRouter([
   {
     path: '/login',
     element: <Login />,
@@ -67,9 +70,9 @@ const router = createBrowserRouter([
       { path: 'services', element: <ServiceList /> },
       { path: 'services/create', element: <ServiceEdit /> },
       { path: 'services/:id', element: <ServiceEdit /> },
-      { path: 'services/:id/logs', element: <div>容器日志</div> },
-      { path: 'logs', element: <div>部署日志</div> },
-      { path: 'users', element: <div>用户管理</div> },
+      { path: 'services/:id/logs', element: <ContainerLogs /> },
+      { path: 'logs', element: <DeployLogs /> },
+      { path: 'users', element: <UserList /> },
     ],
   },
 ])

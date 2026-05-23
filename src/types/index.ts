@@ -20,6 +20,13 @@ export interface DashboardStats {
   totalDeploys: number
 }
 
+export interface SysUser {
+  id: number
+  username: string
+  role: string
+  createTime: string
+}
+
 export interface DeployService {
   id: number
   name: string
