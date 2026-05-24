@@ -5,7 +5,7 @@ export interface Group {
   id: number
   name: string
   description: string
-  createdAt: string
+  createTime: string
 }
 
 export function getGroupList(): Promise<ApiResponse<Group[]>> {

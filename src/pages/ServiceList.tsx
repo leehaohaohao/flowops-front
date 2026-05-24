@@ -8,14 +8,18 @@ import {
   Table,
   Tag,
   Typography,
+  Upload,
 } from 'antd'
 import type { TableProps } from 'antd'
+import { UploadOutlined } from '@ant-design/icons'
 import {
   deployRemove,
   deployRestart,
   deployStart,
   deployStop,
   getServiceList,
+  uploadJar,
+  uploadDist,
 } from '@/api/services'
 import { getProject } from '@/api/projects'
 import { UserContext } from '@/App'
@@ -78,6 +82,17 @@ export default function ServiceList() {
     }
   }
 
+  const handleUpload = async (file: File, record: DeployService) => {
+    try {
+      const uploader = record.serviceType === 'frontend' ? uploadDist : uploadJar
+      await uploader(record.id, file)
+      message.success('上传成功')
+      fetchList()
+    } catch (err) {
+      message.error((err as Error).message || '上传失败')
+    }
+  }
+
   const canCreate = userInfo.isSuperAdmin || (pid && hasPermission(userInfo, { projectId: pid } as DeployService, 'EDIT_CONFIG'))
 
   const columns: TableProps<DeployService>['columns'] = [
@@ -108,6 +123,7 @@ export default function ServiceList() {
         const canEdit = hasPermission(userInfo, record, 'EDIT_CONFIG')
         const canDelete = hasPermission(userInfo, record, 'DELETE')
         const canView = hasPermission(userInfo, record, 'VIEW')
+        const canUpload = hasPermission(userInfo, record, 'UPLOAD')
 
         return (
           <Space size="small" wrap>
@@ -115,6 +131,18 @@ export default function ServiceList() {
               <Button size="small" onClick={() => navigate(`/services/${record.id}`)}>
                 编辑
               </Button>
+            )}
+            {canUpload && (
+              <Upload
+                showUploadList={false}
+                accept={record.serviceType === 'frontend' ? '.zip' : '.jar'}
+                beforeUpload={(file) => {
+                  handleUpload(file, record)
+                  return false
+                }}
+              >
+                <Button size="small" icon={<UploadOutlined />}>上传</Button>
+              </Upload>
             )}
             {canView && (
               <Button size="small" onClick={() => navigate(`/services/${record.id}/logs`)}>

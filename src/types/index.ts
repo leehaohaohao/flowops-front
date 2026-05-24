@@ -45,6 +45,30 @@ export interface Project {
   updateTime: string
 }
 
+export interface GroupMember {
+  userId: number
+  username: string
+  roleId: number
+  roleName: string
+  joinedAt: string
+}
+
+export interface Role {
+  id: number
+  name: string
+  description: string
+  isPreset: boolean
+  groupId?: number
+}
+
+export interface CrossAccess {
+  id: number
+  userId: number
+  projectId: number
+  permCodes: string[]
+  createTime: string
+}
+
 export interface DeployService {
   id: number
   name: string

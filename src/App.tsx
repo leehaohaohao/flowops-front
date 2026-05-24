@@ -10,6 +10,10 @@ import ProjectList from '@/pages/ProjectList'
 import ServiceList from '@/pages/ServiceList'
 import ServiceEdit from '@/pages/ServiceEdit'
 import UserList from '@/pages/UserList'
+import GroupList from '@/pages/GroupList'
+import MemberList from '@/pages/MemberList'
+import RoleList from '@/pages/RoleList'
+import CrossAccess from '@/pages/CrossAccess'
 import DeployLogs from '@/pages/DeployLogs'
 import ContainerLogs from '@/pages/ContainerLogs'
 import MainLayout from '@/layouts/MainLayout'
@@ -75,6 +79,10 @@ const router = createHashRouter([
       { path: 'services/:id/logs', element: <ContainerLogs /> },
       { path: 'logs', element: <DeployLogs /> },
       { path: 'users', element: <UserList /> },
+      { path: 'groups', element: <GroupList /> },
+      { path: 'groups/:groupId/members', element: <MemberList /> },
+      { path: 'roles', element: <RoleList /> },
+      { path: 'access', element: <CrossAccess /> },
     ],
   },
 ])
