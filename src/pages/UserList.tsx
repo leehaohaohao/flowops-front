@@ -136,12 +136,18 @@ export default function UserList() {
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '用户名', dataIndex: 'username' },
     {
-      title: '角色',
-      dataIndex: 'role',
-      width: 120,
+      title: '所属项目',
+      width: 240,
       render: (_: unknown, record: SysUser) => {
         if (record.isSuperAdmin) return <Tag color="red">超级管理员</Tag>
-        return record.roleName || record.role || '-'
+        if (!record.projects?.length) return '-'
+        return (
+          <Space size={4} wrap>
+            {record.projects.map((p) => (
+              <Tag key={p.id}>{p.name}（{p.roleName}）</Tag>
+            ))}
+          </Space>
+        )
       },
     },
     { title: '创建时间', dataIndex: 'createTime', width: 180, render: (val: string) => formatTime(val) },

@@ -32,10 +32,8 @@ export interface DashboardStats {
 export interface SysUser {
   id: number
   username: string
-  role: string
-  isSuperAdmin?: boolean | number
-  projectId?: number
-  roleName?: string
+  isSuperAdmin: boolean
+  projects: Array<{ id: number; name: string; roleName: string }>
   createTime: string
 }
 
