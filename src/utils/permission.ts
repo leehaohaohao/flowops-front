@@ -14,6 +14,7 @@ export const PERM_LABEL: Record<string, string> = {
 
 export function hasPermission(userInfo: UserInfo, service: DeployService, permCode: string): boolean {
   if (userInfo.isSuperAdmin) return true
+  if (isSupervisor(userInfo, service.projectId)) return true
   const perms = userInfo.projectPermissions?.[String(service.projectId)]
   return perms?.includes(permCode) ?? false
 }
