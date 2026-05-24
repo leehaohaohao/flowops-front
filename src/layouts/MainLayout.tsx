@@ -1,25 +1,32 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { Button, Layout, Menu } from 'antd'
+import { Button, Layout, Menu, Tag } from 'antd'
 import {
   CloudServerOutlined,
   DashboardOutlined,
   FileTextOutlined,
   LogoutOutlined,
-  UserOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import { logout } from '@/api/auth'
 import type { UserInfo } from '@/types'
 
 const { Header, Sider, Content } = Layout
 
-const menuItems = [
-  { key: '/dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
-  { key: '/services', icon: <CloudServerOutlined />, label: '服务管理' },
-  { key: '/logs', icon: <FileTextOutlined />, label: '日志查看' },
-  { key: '/users', icon: <UserOutlined />, label: '用户管理' },
-]
+function buildMenuItems(userInfo: UserInfo) {
+  const items = [
+    { key: '/dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
+    { key: '/projects', icon: <CloudServerOutlined />, label: '服务管理' },
+    { key: '/logs', icon: <FileTextOutlined />, label: '日志查看' },
+  ]
+
+  if (userInfo.isSuperAdmin) {
+    items.push({ key: '/users', icon: <TeamOutlined />, label: '用户管理' })
+  }
+
+  return items
+}
 
 export default function MainLayout({
   userInfo,
@@ -32,7 +39,9 @@ export default function MainLayout({
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
 
-  const selectedKey = '/' + location.pathname.split('/')[1]
+  const menuItems = useMemo(() => buildMenuItems(userInfo), [userInfo])
+  const firstSegment = '/' + location.pathname.split('/')[1]
+  const selectedKey = firstSegment === '/services' ? '/projects' : firstSegment
 
   const handleMenuClick = ({ key }: { key: string }) => {
     navigate(key)
@@ -91,6 +100,14 @@ export default function MainLayout({
           }}
         >
           <span>{userInfo.username}</span>
+          {userInfo.isSuperAdmin && <Tag color="red">超级管理员</Tag>}
+          {userInfo.groups
+            ?.filter((g) => g.isSupervisor)
+            .map((g) => (
+              <Tag key={g.id} color="blue">
+                {g.name}主管
+              </Tag>
+            ))}
           <Button type="link" icon={<LogoutOutlined />} onClick={handleLogout}>
             退出
           </Button>

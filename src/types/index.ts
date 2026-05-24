@@ -9,9 +9,18 @@ export interface LoginRequest {
   password: string
 }
 
+export interface UserGroup {
+  id: number
+  name: string
+  roleName: string
+  isSupervisor: boolean
+}
+
 export interface UserInfo {
   username: string
-  role: string
+  isSuperAdmin: boolean
+  groups: UserGroup[]
+  projectPermissions?: Record<string, string[]>
 }
 
 export interface DashboardStats {
@@ -27,9 +36,19 @@ export interface SysUser {
   createTime: string
 }
 
+export interface Project {
+  id: number
+  groupId: number
+  name: string
+  description: string
+  createdAt: string
+}
+
 export interface DeployService {
   id: number
   name: string
+  projectId: number
+  projectName: string
   port: number
   volumeDir: string
   serviceType: 'backend' | 'frontend' | 'fullstack'

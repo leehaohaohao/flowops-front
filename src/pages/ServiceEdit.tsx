@@ -134,7 +134,7 @@ function generatePreview(config: ServiceConfig, type: string, port: number) {
 }
 
 export default function ServiceEdit() {
-  const { id } = useParams()
+  const { id, projectId } = useParams()
   const navigate = useNavigate()
   const [form] = Form.useForm()
   const [serviceType, setServiceType] = useState<string>('backend')
@@ -142,8 +142,10 @@ export default function ServiceEdit() {
   const [previewVisible, setPreviewVisible] = useState(false)
   const [preview, setPreview] = useState({ dockerfile: '', nginx: '', compose: '' })
   const [useCustomNginx, setUseCustomNginx] = useState(false)
+  const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null)
 
   const isEdit = !!id
+  const currentProjectId = projectId || (loadedProjectId ? String(loadedProjectId) : null)
 
   useEffect(() => {
     if (!id) return
@@ -151,6 +153,7 @@ export default function ServiceEdit() {
       .then((res) => {
         const svc = res.data
         setServiceType(svc.serviceType)
+        setLoadedProjectId(svc.projectId)
 
         let config: ServiceConfig = {}
         try {
@@ -228,6 +231,7 @@ export default function ServiceEdit() {
         port: values.port,
         serviceType: values.serviceType,
         serviceConfig: JSON.stringify(config),
+        ...(projectId ? { projectId: Number(projectId) } : {}),
       }
       if (isEdit) {
         await updateService(Number(id), data)
@@ -236,7 +240,11 @@ export default function ServiceEdit() {
         await createService(data)
         message.success('创建成功')
       }
-      navigate('/services')
+      if (currentProjectId) {
+        navigate(`/projects/${currentProjectId}/services`)
+      } else {
+        navigate('/projects')
+      }
     } catch (err) {
       if ((err as { errorFields?: unknown }).errorFields) return
       message.error((err as Error).message || '保存失败')
@@ -488,7 +496,7 @@ export default function ServiceEdit() {
             保存
           </Button>
           <Button onClick={handlePreview}>预览配置</Button>
-          <Button onClick={() => navigate('/services')}>取消</Button>
+          <Button onClick={() => currentProjectId ? navigate(`/projects/${currentProjectId}/services`) : navigate('/projects')}>取消</Button>
         </Space>
       </Form>
 

@@ -6,6 +6,7 @@ import { getUserInfo } from '@/api/auth'
 import type { UserInfo } from '@/types'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
+import ProjectList from '@/pages/ProjectList'
 import ServiceList from '@/pages/ServiceList'
 import ServiceEdit from '@/pages/ServiceEdit'
 import UserList from '@/pages/UserList'
@@ -67,8 +68,9 @@ const router = createHashRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
-      { path: 'services', element: <ServiceList /> },
-      { path: 'services/create', element: <ServiceEdit /> },
+      { path: 'projects', element: <ProjectList /> },
+      { path: 'projects/:projectId/services', element: <ServiceList /> },
+      { path: 'projects/:projectId/services/create', element: <ServiceEdit /> },
       { path: 'services/:id', element: <ServiceEdit /> },
       { path: 'services/:id/logs', element: <ContainerLogs /> },
       { path: 'logs', element: <DeployLogs /> },

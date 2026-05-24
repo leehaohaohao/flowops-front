@@ -12,7 +12,7 @@ const request = axios.create({
 request.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('token')
   if (token) {
-    config.headers.satoken = token
+    config.headers.Authorization = token
   }
   return config
 })
@@ -21,16 +21,14 @@ request.interceptors.response.use(
   (response: AxiosResponse) => {
     const data = response.data as ApiResponse<unknown>
 
-    if (data.code === 401 || data.code === 403) {
+    if (data.code === 401) {
       localStorage.removeItem('token')
-      window.location.href = '/login'
-      return Promise.reject(new Error(data.msg || '未授权'))
+      window.location.href = '/#/login'
+      return Promise.reject(new Error(data.msg || '未登录或登录已过期'))
     }
 
-    if (data.code >= 11011 && data.code <= 11016) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
-      return Promise.reject(new Error('登录已过期'))
+    if (data.code === 403) {
+      return Promise.reject(new Error(data.msg || '权限不足'))
     }
 
     if (data.code !== 200) {
@@ -40,9 +38,9 @@ request.interceptors.response.use(
     return response.data
   },
   (error: AxiosError) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    if (error.response?.status === 401) {
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      window.location.href = '/#/login'
     }
     return Promise.reject(error)
   },
