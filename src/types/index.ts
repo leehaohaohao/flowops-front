@@ -33,6 +33,8 @@ export interface SysUser {
   id: number
   username: string
   role: string
+  groupId?: number
+  roleName?: string
   createTime: string
 }
 
@@ -50,7 +52,7 @@ export interface GroupMember {
   username: string
   roleId: number
   roleName: string
-  joinedAt: string
+  createTime: string
 }
 
 export interface Role {
@@ -65,8 +67,14 @@ export interface CrossAccess {
   id: number
   userId: number
   projectId: number
-  permCodes: string[]
+  permCode: string
   createTime: string
+}
+
+export interface AggregatedAccess {
+  userId: number
+  projectId: number
+  items: Array<{ id: number; permCode: string; createTime: string }>
 }
 
 export interface DeployService {

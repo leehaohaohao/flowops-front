@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Button,
   Checkbox,
@@ -20,25 +21,16 @@ import { createRole, deleteRole, getGroupRoles, getRolePermissions, updateRole }
 import { getGroupList } from '@/api/groups'
 import type { Group } from '@/api/groups'
 import { UserContext } from '@/App'
-import { isSupervisor } from '@/utils/permission'
+import { isSupervisor, PERM_LABEL } from '@/utils/permission'
 import type { Role } from '@/types'
 
 const { Title } = Typography
 
-const ALL_PERMISSIONS = [
-  { value: 'VIEW', label: '查看 (VIEW)' },
-  { value: 'DEPLOY', label: '部署 (DEPLOY)' },
-  { value: 'START', label: '启动 (START)' },
-  { value: 'STOP', label: '停止 (STOP)' },
-  { value: 'UPLOAD', label: '上传 (UPLOAD)' },
-  { value: 'EDIT_CONFIG', label: '编辑配置 (EDIT_CONFIG)' },
-  { value: 'DELETE', label: '删除 (DELETE)' },
-  { value: 'MANAGE_MEMBERS', label: '管理成员 (MANAGE_MEMBERS)' },
-  { value: 'MANAGE_PROJECTS', label: '管理项目 (MANAGE_PROJECTS)' },
-]
+const ALL_PERMISSIONS = Object.entries(PERM_LABEL).map(([value, label]) => ({ value, label }))
 
 export default function RoleList() {
   const userInfo = useContext(UserContext)!
+  const navigate = useNavigate()
   const [list, setList] = useState<Role[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,6 +40,12 @@ export default function RoleList() {
   const [form] = Form.useForm()
 
   const canManage = userInfo.isSuperAdmin || isSupervisor(userInfo)
+
+  useEffect(() => {
+    if (!userInfo.isSuperAdmin && !isSupervisor(userInfo)) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [userInfo.isSuperAdmin])
 
   const fetchList = () => {
     setLoading(true)

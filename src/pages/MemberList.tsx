@@ -41,6 +41,12 @@ export default function MemberList() {
 
   const canManage = userInfo.isSuperAdmin || isSupervisor(userInfo, gid)
 
+  useEffect(() => {
+    if (!userInfo.isSuperAdmin && !isSupervisor(userInfo, gid)) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [userInfo.isSuperAdmin, gid])
+
   const fetchMembers = () => {
     setLoading(true)
     getGroupMembers(gid)
@@ -109,7 +115,7 @@ export default function MemberList() {
     { title: '用户ID', dataIndex: 'userId', width: 80 },
     { title: '用户名', dataIndex: 'username' },
     { title: '角色', dataIndex: 'roleName', width: 120 },
-    { title: '加入时间', dataIndex: 'joinedAt', width: 180, render: (val: string) => formatTime(val) },
+    { title: '加入时间', dataIndex: 'createTime', width: 180, render: (val: string) => formatTime(val) },
     ...(canManage
       ? [
           {

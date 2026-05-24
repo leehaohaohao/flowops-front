@@ -9,6 +9,7 @@ import {
   Popconfirm,
   Space,
   Table,
+  Tooltip,
   Typography,
 } from 'antd'
 import type { TableProps } from 'antd'
@@ -28,6 +29,10 @@ export default function GroupList() {
   const [editing, setEditing] = useState<Group | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
+
+  useEffect(() => {
+    if (!userInfo.isSuperAdmin) navigate('/dashboard', { replace: true })
+  }, [userInfo.isSuperAdmin])
 
   const fetchList = () => {
     setLoading(true)
@@ -96,24 +101,37 @@ export default function GroupList() {
       ),
     },
     { title: '描述', dataIndex: 'description', ellipsis: true },
+    { title: '成员数', dataIndex: 'memberCount', width: 80, render: (val?: number) => val ?? '-' },
+    { title: '项目数', dataIndex: 'projectCount', width: 80, render: (val?: number) => val ?? '-' },
     { title: '创建时间', dataIndex: 'createTime', width: 180, render: (val: string) => formatTime(val) },
     ...(userInfo.isSuperAdmin
       ? [
           {
             title: '操作',
             width: 140,
-            render: (_: unknown, record: Group) => (
-              <Space size="small">
-                <Button size="small" onClick={() => openEdit(record)}>
-                  编辑
-                </Button>
-                <Popconfirm title="确认删除该项目组？需先移除组内所有项目。" onConfirm={() => handleDelete(record.id)}>
-                  <Button size="small" danger>
-                    删除
+            render: (_: unknown, record: Group, index: number) => {
+              const isDefault = index === 0
+              return (
+                <Space size="small">
+                  <Button size="small" onClick={() => openEdit(record)}>
+                    编辑
                   </Button>
-                </Popconfirm>
-              </Space>
-            ),
+                  {isDefault ? (
+                    <Tooltip title="默认项目组不可删除">
+                      <Button size="small" danger disabled>
+                        删除
+                      </Button>
+                    </Tooltip>
+                  ) : (
+                    <Popconfirm title="确认删除该项目组？需先移除组内所有项目。" onConfirm={() => handleDelete(record.id)}>
+                      <Button size="small" danger>
+                        删除
+                      </Button>
+                    </Popconfirm>
+                  )}
+                </Space>
+              )
+            },
           },
         ]
       : []),

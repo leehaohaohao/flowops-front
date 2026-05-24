@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Button,
   Checkbox,
@@ -15,26 +16,27 @@ import {
   Typography,
 } from 'antd'
 import type { TableProps } from 'antd'
+import { CloseCircleOutlined } from '@ant-design/icons'
 import { getUserList } from '@/api/users'
 import { getProjectList } from '@/api/projects'
 import { getUserAccess, grantAccess, revokeAccess } from '@/api/access'
+import { UserContext } from '@/App'
 import { formatTime } from '@/utils/format'
-import type { CrossAccess, Project, SysUser } from '@/types'
+import { PERM_LABEL } from '@/utils/permission'
+import type { AggregatedAccess, CrossAccess, Project, SysUser } from '@/types'
 
 const { Title } = Typography
 
-const ALL_PERMISSIONS = [
-  { value: 'VIEW', label: '查看' },
-  { value: 'DEPLOY', label: '部署' },
-  { value: 'START', label: '启动' },
-  { value: 'STOP', label: '停止' },
-  { value: 'UPLOAD', label: '上传' },
-  { value: 'EDIT_CONFIG', label: '编辑配置' },
-  { value: 'DELETE', label: '删除' },
-]
+const ALL_PERMISSIONS = Object.entries(PERM_LABEL).map(([value, label]) => ({ value, label }))
 
 export default function CrossAccessPage() {
-  const [list, setList] = useState<CrossAccess[]>([])
+  const userInfo = useContext(UserContext)!
+  const navigate = useNavigate()
+  const [rawList, setRawList] = useState<CrossAccess[]>([])
+
+  useEffect(() => {
+    if (!userInfo.isSuperAdmin) navigate('/dashboard', { replace: true })
+  }, [userInfo.isSuperAdmin])
   const [users, setUsers] = useState<SysUser[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
@@ -43,10 +45,23 @@ export default function CrossAccessPage() {
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
 
+  // 按 (userId, projectId) 聚合
+  const aggregated: AggregatedAccess[] = useMemo(() => {
+    const map = new Map<string, AggregatedAccess>()
+    for (const item of rawList) {
+      const key = `${item.userId}-${item.projectId}`
+      if (!map.has(key)) {
+        map.set(key, { userId: item.userId, projectId: item.projectId, items: [] })
+      }
+      map.get(key)!.items.push({ id: item.id, permCode: item.permCode, createTime: item.createTime })
+    }
+    return Array.from(map.values())
+  }, [rawList])
+
   const fetchAccess = (userId: number) => {
     setLoading(true)
     getUserAccess(userId)
-      .then((res) => setList(res.data))
+      .then((res) => setRawList(res.data))
       .catch((err) => message.error((err as Error).message || '获取授权列表失败'))
       .finally(() => setLoading(false))
   }
@@ -83,10 +98,20 @@ export default function CrossAccessPage() {
     }
   }
 
-  const handleRevoke = async (id: number) => {
+  const handleRevokeOne = async (id: number) => {
     try {
       await revokeAccess(id)
-      message.success('撤销成功')
+      message.success('已撤销')
+      if (selectedUserId) fetchAccess(selectedUserId)
+    } catch (err) {
+      message.error((err as Error).message || '撤销失败')
+    }
+  }
+
+  const handleRevokeAll = async (items: AggregatedAccess['items']) => {
+    try {
+      await Promise.all(items.map((item) => revokeAccess(item.id)))
+      message.success('已全部撤销')
       if (selectedUserId) fetchAccess(selectedUserId)
     } catch (err) {
       message.error((err as Error).message || '撤销失败')
@@ -95,8 +120,8 @@ export default function CrossAccessPage() {
 
   const getProjectName = (projectId: number) => projects.find((p) => p.id === projectId)?.name || String(projectId)
 
-  const columns: TableProps<CrossAccess>['columns'] = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
+  const columns: TableProps<AggregatedAccess>['columns'] = [
+    { title: '用户ID', dataIndex: 'userId', width: 80 },
     {
       title: '项目',
       dataIndex: 'projectId',
@@ -104,23 +129,45 @@ export default function CrossAccessPage() {
     },
     {
       title: '权限',
-      dataIndex: 'permCodes',
-      render: (vals: string[]) => (
+      dataIndex: 'items',
+      render: (_: unknown, record: AggregatedAccess) => (
         <Space size={4} wrap>
-          {vals?.map((p) => (
-            <Tag key={p} color="blue">{p}</Tag>
+          {record.items.map((item) => (
+            <Tag
+              key={item.id}
+              color="blue"
+              closable
+              onClose={(e) => {
+                e.preventDefault()
+                handleRevokeOne(item.id)
+              }}
+              closeIcon={<CloseCircleOutlined />}
+            >
+              {PERM_LABEL[item.permCode] || item.permCode}
+            </Tag>
           ))}
         </Space>
       ),
     },
-    { title: '授权时间', dataIndex: 'createTime', width: 180, render: (val: string) => formatTime(val) },
+    {
+      title: '授权时间',
+      dataIndex: 'items',
+      width: 180,
+      render: (_: unknown, record: AggregatedAccess) => {
+        const times = record.items.map((i) => i.createTime).sort()
+        return formatTime(times[0])
+      },
+    },
     {
       title: '操作',
-      width: 80,
-      render: (_, record) => (
-        <Popconfirm title="确认撤销该授权？" onConfirm={() => handleRevoke(record.id)}>
+      width: 100,
+      render: (_: unknown, record: AggregatedAccess) => (
+        <Popconfirm
+          title={`确认撤销 ${getProjectName(record.projectId)} 的全部权限？`}
+          onConfirm={() => handleRevokeAll(record.items)}
+        >
           <Button size="small" danger>
-            撤销
+            全部撤销
           </Button>
         </Popconfirm>
       ),
@@ -158,7 +205,7 @@ export default function CrossAccessPage() {
       </Space>
 
       {selectedUserId ? (
-        <Table columns={columns} dataSource={list} rowKey="id" loading={loading} pagination={false} />
+        <Table columns={columns} dataSource={aggregated} rowKey={(r) => `${r.userId}-${r.projectId}`} loading={loading} pagination={false} />
       ) : (
         <div style={{ color: '#999', textAlign: 'center', padding: 40 }}>请先选择用户</div>
       )}
@@ -192,7 +239,7 @@ export default function CrossAccessPage() {
             <Checkbox.Group>
               <Row gutter={[8, 8]}>
                 {ALL_PERMISSIONS.map((p) => (
-                  <Col span={7} key={p.value}>
+                  <Col span={8} key={p.value}>
                     <Checkbox value={p.value}>{p.label}</Checkbox>
                   </Col>
                 ))}

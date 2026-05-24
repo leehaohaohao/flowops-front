@@ -5,7 +5,13 @@ export function getUserList(): Promise<ApiResponse<SysUser[]>> {
   return request.get('/api/users/list')
 }
 
-export function createUser(data: { username: string; password: string; role: string }): Promise<ApiResponse<null>> {
+export function createUser(data: {
+  username: string
+  password: string
+  groupId?: number
+  roleId: number
+  extraPermissions?: string[]
+}): Promise<ApiResponse<null>> {
   return request.post('/api/users/create', data)
 }
 
