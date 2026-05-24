@@ -21,6 +21,7 @@ import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { createUser, deleteUser, getUserList } from '@/api/users'
 import { getProjectList } from '@/api/projects'
 import { getProjectRoles, getRolePermissions } from '@/api/roles'
+import { addMember, removeMember, updateMemberRole } from '@/api/members'
 import { UserContext } from '@/App'
 import { formatTime } from '@/utils/format'
 import { isSupervisor, PERM_LABEL } from '@/utils/permission'
@@ -39,6 +40,7 @@ export default function UserList() {
   const [rolePermsMap, setRolePermsMap] = useState<Record<number, string[]>>({})
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<SysUser | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
 
@@ -78,7 +80,6 @@ export default function UserList() {
       return
     }
     const roles = await fetchRoles(projectId)
-    // 自动选第一个角色
     if (roles.length > 0) {
       form.setFieldsValue({ projects: { [index]: { roleId: roles[0].id } } })
       handleRoleChange(roles[0].id, index)
@@ -101,36 +102,93 @@ export default function UserList() {
   }
 
   const openCreate = () => {
+    setEditingUser(null)
     form.resetFields()
     setRolePermsMap({})
     setModalOpen(true)
   }
 
-  const handleCreate = async () => {
+  const openEdit = async (record: SysUser) => {
+    setEditingUser(record)
+    setRolePermsMap({})
+    // 预加载所有涉及的项目角色
+    const projectIds = record.projects.map((p) => p.id)
+    const rolesResults = await Promise.all(projectIds.map((id) => fetchRoles(id)))
+    // 构建 projectId -> roles 映射
+    const loadedRoles: Record<number, Role[]> = {}
+    projectIds.forEach((id, i) => { loadedRoles[id] = rolesResults[i] })
+    // 预填表单
+    form.setFieldsValue({
+      username: record.username,
+      projects: record.projects.map((p) => ({
+        projectId: p.id,
+        roleId: loadedRoles[p.id]?.find((r) => r.name === p.roleName)?.id,
+      })),
+    })
+    setModalOpen(true)
+  }
+
+  const handleSubmit = async () => {
     try {
       const values = await form.validateFields()
       setSubmitting(true)
-      const projectAssignments = (values.projects || [])
-        .filter((p: { projectId?: number }) => p?.projectId)
-        .map((p: { projectId: number; roleId: number; extraPermissions?: string[] }) => ({
-          projectId: p.projectId,
-          roleId: p.roleId,
-          extraPermissions: (p.extraPermissions || []).filter(
-            (perm: string) => !(rolePermsMap[p.projectId] || []).includes(perm),
-          ),
-        }))
-      await createUser({
-        username: values.username,
-        password: values.password,
-        projects: projectAssignments.length > 0 ? projectAssignments : undefined,
-      })
-      message.success('创建成功')
+
+      if (editingUser) {
+        // 编辑模式：通过 members API 同步项目-角色变更
+        const oldProjects = editingUser.projects
+        const newProjects = (values.projects || []).filter((p: { projectId?: number }) => p?.projectId)
+
+        const oldIds = new Set(oldProjects.map((p) => p.id))
+        const newMap = new Map(newProjects.map((p: { projectId: number; roleId: number }) => [p.projectId, p]))
+
+        // 移除不再归属的项目
+        for (const old of oldProjects) {
+          if (!newMap.has(old.id)) {
+            await removeMember(old.id, editingUser.id)
+          }
+        }
+
+        // 更新或新增
+        for (const [pid, assignment] of newMap) {
+          if (oldIds.has(pid)) {
+            const oldEntry = oldProjects.find((p) => p.id === pid)
+            const newRoleId = (assignment as { roleId: number }).roleId
+            const oldRoleId = (rolesMap[pid] || []).find((r) => r.name === oldEntry?.roleName)?.id
+            if (oldEntry && oldRoleId !== newRoleId) {
+              await updateMemberRole(pid, editingUser.id, { roleId: newRoleId })
+            }
+          } else {
+            await addMember(pid, { userId: editingUser.id, roleId: (assignment as { roleId: number }).roleId })
+          }
+        }
+
+        message.success('更新成功')
+      } else {
+        // 创建模式
+        const projectAssignments = (values.projects || [])
+          .filter((p: { projectId?: number }) => p?.projectId)
+          .map((p: { projectId: number; roleId: number; extraPermissions?: string[] }) => ({
+            projectId: p.projectId,
+            roleId: p.roleId,
+            extraPermissions: (p.extraPermissions || []).filter(
+              (perm: string) => !(rolePermsMap[p.projectId] || []).includes(perm),
+            ),
+          }))
+        await createUser({
+          username: values.username,
+          password: values.password,
+          projects: projectAssignments.length > 0 ? projectAssignments : undefined,
+        })
+        message.success('创建成功')
+      }
+
       setModalOpen(false)
       form.resetFields()
+      setEditingUser(null)
       fetchList()
     } catch (err) {
       if ((err as Error).message) {
-        message.error((err as Error).message || '创建失败')
+        message.error((err as Error).message || '操作失败')
       }
     } finally {
       setSubmitting(false)
@@ -170,13 +228,18 @@ export default function UserList() {
       ? [
           {
             title: '操作',
-            width: 80,
+            width: 130,
             render: (_: unknown, record: SysUser) => (
-              <Popconfirm title="确认删除该用户？" onConfirm={() => handleDelete(record.id)}>
-                <Button size="small" danger>
-                  删除
+              <Space size="small">
+                <Button size="small" onClick={() => openEdit(record)}>
+                  编辑
                 </Button>
-              </Popconfirm>
+                <Popconfirm title="确认删除该用户？" onConfirm={() => handleDelete(record.id)}>
+                  <Button size="small" danger>
+                    删除
+                  </Button>
+                </Popconfirm>
+              </Space>
             ),
           },
         ]
@@ -208,25 +271,29 @@ export default function UserList() {
       <Table columns={columns} dataSource={list} rowKey="id" loading={loading} pagination={false} />
 
       <Modal
-        title="创建用户"
+        title={editingUser ? '编辑用户' : '创建用户'}
         open={modalOpen}
-        onOk={handleCreate}
-        onCancel={() => setModalOpen(false)}
+        onOk={handleSubmit}
+        onCancel={() => { setModalOpen(false); setEditingUser(null) }}
         confirmLoading={submitting}
         width={640}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input />
+            <Input disabled={!!editingUser} />
           </Form.Item>
-          <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
-            <Input.Password />
-          </Form.Item>
+          {!editingUser && (
+            <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
+              <Input.Password />
+            </Form.Item>
+          )}
 
           <div style={{ marginBottom: 8, fontWeight: 500 }}>项目分配</div>
-          <div style={{ color: '#999', fontSize: 12, marginBottom: 12 }}>
-            不添加则自动归入默认项目（viewer 角色）
-          </div>
+          {!editingUser && (
+            <div style={{ color: '#999', fontSize: 12, marginBottom: 12 }}>
+              不添加则自动归入默认项目（viewer 角色）
+            </div>
+          )}
 
           <Form.List name="projects">
             {(fields, { add, remove }) => (
