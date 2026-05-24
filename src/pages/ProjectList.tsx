@@ -107,6 +107,12 @@ export default function ProjectList() {
       render: (val?: number) => val ?? '-',
     },
     {
+      title: '服务数',
+      dataIndex: 'serviceCount',
+      width: 80,
+      render: (val?: number) => val ?? '-',
+    },
+    {
       title: '默认',
       dataIndex: 'isDefault',
       width: 70,
