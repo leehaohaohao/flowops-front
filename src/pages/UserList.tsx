@@ -17,6 +17,7 @@ import {
   Typography,
 } from 'antd'
 import type { TableProps } from 'antd'
+import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { createUser, deleteUser, getUserList } from '@/api/users'
 import { getProjectList } from '@/api/projects'
 import { getProjectRoles, getRolePermissions } from '@/api/roles'
@@ -34,14 +35,12 @@ export default function UserList() {
   const navigate = useNavigate()
   const [list, setList] = useState<SysUser[]>([])
   const [projects, setProjects] = useState<Project[]>([])
-  const [roles, setRoles] = useState<Role[]>([])
-  const [rolePerms, setRolePerms] = useState<string[]>([])
+  const [rolesMap, setRolesMap] = useState<Record<number, Role[]>>({})
+  const [rolePermsMap, setRolePermsMap] = useState<Record<number, string[]>>({})
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
-
-  const selectedProjectId = Form.useWatch('projectId', form)
 
   useEffect(() => {
     if (!userInfo.isSuperAdmin) navigate('/dashboard', { replace: true })
@@ -60,40 +59,50 @@ export default function UserList() {
     getProjectList().then((res) => setProjects(res.data)).catch(() => {})
   }, [])
 
-  // 查找默认项目
-  const defaultProject = projects.find((p) => p.isDefault === 1)
+  // 获取某项目的角色列表（带缓存）
+  const fetchRoles = async (projectId: number) => {
+    if (rolesMap[projectId]) return rolesMap[projectId]
+    try {
+      const res = await getProjectRoles(projectId)
+      setRolesMap((prev) => ({ ...prev, [projectId]: res.data }))
+      return res.data
+    } catch {
+      return []
+    }
+  }
 
-  // 项目变化时重新获取角色列表
-  useEffect(() => {
-    const pid = selectedProjectId || defaultProject?.id
-    if (!pid) {
-      setRoles([])
-      form.setFieldsValue({ roleId: undefined })
+  // 项目变化时加载角色
+  const handleProjectChange = async (projectId: number, index: number) => {
+    if (!projectId) {
+      form.setFieldsValue({ projects: { [index]: { roleId: undefined, extraPermissions: [] } } })
       return
     }
-    getProjectRoles(pid)
-      .then((res) => setRoles(res.data))
-      .catch(() => {})
-  }, [selectedProjectId, defaultProject?.id])
+    const roles = await fetchRoles(projectId)
+    // 自动选第一个角色
+    if (roles.length > 0) {
+      form.setFieldsValue({ projects: { [index]: { roleId: roles[0].id } } })
+      handleRoleChange(roles[0].id, index)
+    }
+  }
 
   // 角色变化时获取角色已有权限
-  const handleRoleChange = async (roleId: number) => {
+  const handleRoleChange = async (roleId: number, index: number) => {
     if (!roleId) {
-      setRolePerms([])
+      setRolePermsMap((prev) => ({ ...prev, [index]: [] }))
       return
     }
     try {
       const res = await getRolePermissions(roleId)
-      setRolePerms(res.data)
-      form.setFieldsValue({ extraPermissions: res.data })
+      setRolePermsMap((prev) => ({ ...prev, [index]: res.data }))
+      form.setFieldsValue({ projects: { [index]: { extraPermissions: res.data } } })
     } catch {
-      setRolePerms([])
+      setRolePermsMap((prev) => ({ ...prev, [index]: [] }))
     }
   }
 
   const openCreate = () => {
     form.resetFields()
-    setRolePerms([])
+    setRolePermsMap({})
     setModalOpen(true)
   }
 
@@ -101,14 +110,19 @@ export default function UserList() {
     try {
       const values = await form.validateFields()
       setSubmitting(true)
+      const projectAssignments = (values.projects || [])
+        .filter((p: { projectId?: number }) => p?.projectId)
+        .map((p: { projectId: number; roleId: number; extraPermissions?: string[] }) => ({
+          projectId: p.projectId,
+          roleId: p.roleId,
+          extraPermissions: (p.extraPermissions || []).filter(
+            (perm: string) => !(rolePermsMap[p.projectId] || []).includes(perm),
+          ),
+        }))
       await createUser({
         username: values.username,
         password: values.password,
-        projectId: values.projectId || undefined,
-        roleId: values.roleId,
-        extraPermissions: (values.extraPermissions || []).filter(
-          (p: string) => !rolePerms.includes(p),
-        ),
+        projects: projectAssignments.length > 0 ? projectAssignments : undefined,
       })
       message.success('创建成功')
       setModalOpen(false)
@@ -174,11 +188,6 @@ export default function UserList() {
     ? projects
     : projects.filter((p) => isSupervisor(userInfo, p.id))
 
-  // 过滤可选角色：不能分配 supervisor 角色（除非自己是 superAdmin）
-  const availableRoles = userInfo.isSuperAdmin
-    ? roles
-    : roles.filter((r) => r.name !== 'supervisor')
-
   return (
     <div>
       <div
@@ -204,7 +213,7 @@ export default function UserList() {
         onOk={handleCreate}
         onCancel={() => setModalOpen(false)}
         confirmLoading={submitting}
-        width={520}
+        width={640}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
@@ -213,33 +222,95 @@ export default function UserList() {
           <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
             <Input.Password />
           </Form.Item>
-          <Form.Item name="projectId" label="项目" help="不选则归入默认项目">
-            <Select
-              placeholder="选择项目（可留空）"
-              allowClear
-              options={availableProjects.map((p) => ({ value: p.id, label: p.name }))}
-            />
-          </Form.Item>
-          <Form.Item name="roleId" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
-            <Select
-              placeholder="选择角色"
-              options={availableRoles.map((r) => ({ value: r.id, label: `${r.name}${r.isPreset ? ' (预设)' : ''}` }))}
-              onChange={handleRoleChange}
-            />
-          </Form.Item>
-          <Form.Item name="extraPermissions" label="补充权限" help="角色已包含的权限自动勾选">
-            <Checkbox.Group>
-              <Row gutter={[8, 8]}>
-                {ALL_PERMISSIONS.map((p) => (
-                  <Col span={8} key={p.value}>
-                    <Checkbox value={p.value} disabled={rolePerms.includes(p.value)}>
-                      {p.label}
-                    </Checkbox>
-                  </Col>
+
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>项目分配</div>
+          <div style={{ color: '#999', fontSize: 12, marginBottom: 12 }}>
+            不添加则自动归入默认项目（viewer 角色）
+          </div>
+
+          <Form.List name="projects">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }, index) => (
+                  <div
+                    key={key}
+                    style={{
+                      border: '1px solid #f0f0f0',
+                      borderRadius: 6,
+                      padding: 12,
+                      marginBottom: 12,
+                      position: 'relative',
+                    }}
+                  >
+                    <MinusCircleOutlined
+                      style={{ position: 'absolute', top: 8, right: 8, color: '#999', cursor: 'pointer' }}
+                      onClick={() => {
+                        remove(name)
+                        setRolePermsMap((prev) => {
+                          const next = { ...prev }
+                          delete next[index]
+                          return next
+                        })
+                      }}
+                    />
+                    <Row gutter={12}>
+                      <Col span={12}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'projectId']}
+                          label="项目"
+                          rules={[{ required: true, message: '请选择项目' }]}
+                        >
+                          <Select
+                            placeholder="选择项目"
+                            options={availableProjects.map((p) => ({ value: p.id, label: p.name }))}
+                            onChange={(val) => handleProjectChange(val, index)}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'roleId']}
+                          label="角色"
+                          rules={[{ required: true, message: '请选择角色' }]}
+                        >
+                          <Select
+                            placeholder="先选项目"
+                            options={(rolesMap[form.getFieldValue(['projects', index, 'projectId'])] || [])
+                              .filter((r) => userInfo.isSuperAdmin || r.name !== 'supervisor')
+                              .map((r) => ({ value: r.id, label: `${r.name}${r.isPreset ? ' (预设)' : ''}` }))}
+                            onChange={(val) => handleRoleChange(val, index)}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'extraPermissions']}
+                      label="补充权限"
+                      style={{ marginBottom: 0 }}
+                    >
+                      <Checkbox.Group>
+                        <Row gutter={[8, 4]}>
+                          {ALL_PERMISSIONS.map((p) => (
+                            <Col span={8} key={p.value}>
+                              <Checkbox value={p.value} disabled={(rolePermsMap[index] || []).includes(p.value)}>
+                                {p.label}
+                              </Checkbox>
+                            </Col>
+                          ))}
+                        </Row>
+                      </Checkbox.Group>
+                    </Form.Item>
+                  </div>
                 ))}
-              </Row>
-            </Checkbox.Group>
-          </Form.Item>
+                <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                  添加项目
+                </Button>
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
     </div>
