@@ -5,6 +5,7 @@ export interface Group {
   id: number
   name: string
   description: string
+  isDefault?: number
   memberCount?: number
   projectCount?: number
   createTime: string

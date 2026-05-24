@@ -109,8 +109,8 @@ export default function GroupList() {
           {
             title: '操作',
             width: 140,
-            render: (_: unknown, record: Group, index: number) => {
-              const isDefault = index === 0
+            render: (_: unknown, record: Group) => {
+              const isDefault = record.isDefault === 1
               return (
                 <Space size="small">
                   <Button size="small" onClick={() => openEdit(record)}>
