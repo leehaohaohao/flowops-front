@@ -26,8 +26,6 @@ import type { GroupMember } from '@/types'
 
 const { Title } = Typography
 
-const ALL_PERMISSIONS = Object.entries(PERM_LABEL).map(([value, label]) => ({ value, label }))
-
 export default function MemberList() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
@@ -234,10 +232,10 @@ export default function MemberList() {
             <Form.Item name="extraPermissions" label="补充权限" help="角色已包含的权限自动勾选">
               <Checkbox.Group>
                 <Row gutter={[8, 8]}>
-                  {ALL_PERMISSIONS.map((p) => (
-                    <Col span={8} key={p.value}>
-                      <Checkbox value={p.value} disabled={rolePerms.includes(p.value)}>
-                        {p.label}
+                  {(assignable?.permissions || []).map((p) => (
+                    <Col span={8} key={p}>
+                      <Checkbox value={p} disabled={rolePerms.includes(p)}>
+                        {PERM_LABEL[p] || p}
                       </Checkbox>
                     </Col>
                   ))}
