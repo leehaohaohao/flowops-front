@@ -18,10 +18,9 @@ import {
 } from 'antd'
 import type { TableProps } from 'antd'
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
-import { createUser, deleteUser, getUserList } from '@/api/users'
+import { createUser, deleteUser, getUserList, updateUser } from '@/api/users'
 import { getProjectList } from '@/api/projects'
 import { getProjectRoles, getRolePermissions } from '@/api/roles'
-import { addMember, removeMember, updateMemberRole } from '@/api/members'
 import { UserContext } from '@/App'
 import { formatTime } from '@/utils/format'
 import { isSupervisor, PERM_LABEL } from '@/utils/permission'
@@ -149,34 +148,17 @@ export default function UserList() {
       setSubmitting(true)
 
       if (editingUser) {
-        // 编辑模式：通过 members API 同步项目-角色变更
-        const oldProjects = editingUser.projects
-        const newProjects = (values.projects || []).filter((p: { projectId?: number }) => p?.projectId)
-
-        const oldIds = new Set(oldProjects.map((p) => p.id))
-        const newMap = new Map(newProjects.map((p: { projectId: number; roleId: number }) => [p.projectId, p]))
-
-        // 移除不再归属的项目
-        for (const old of oldProjects) {
-          if (!newMap.has(old.id)) {
-            await removeMember(old.id, editingUser.id)
-          }
-        }
-
-        // 更新或新增
-        for (const [pid, assignment] of newMap) {
-          if (oldIds.has(pid)) {
-            const oldEntry = oldProjects.find((p) => p.id === pid)
-            const newRoleId = (assignment as { roleId: number }).roleId
-            const oldRoleId = (rolesMap[pid] || []).find((r) => r.name === oldEntry?.roleName)?.id
-            if (oldEntry && oldRoleId !== newRoleId) {
-              await updateMemberRole(pid, editingUser.id, { roleId: newRoleId })
-            }
-          } else {
-            await addMember(pid, { userId: editingUser.id, roleId: (assignment as { roleId: number }).roleId })
-          }
-        }
-
+        // 编辑模式
+        const projectAssignments = (values.projects || [])
+          .filter((p: { projectId?: number }) => p?.projectId)
+          .map((p: { projectId: number; roleId: number; extraPermissions?: string[] }) => ({
+            projectId: p.projectId,
+            roleId: p.roleId,
+            extraPermissions: p.extraPermissions || [],
+          }))
+        await updateUser(editingUser.id, {
+          projects: projectAssignments.length > 0 ? projectAssignments : undefined,
+        })
         message.success('更新成功')
       } else {
         // 创建模式

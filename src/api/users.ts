@@ -13,6 +13,12 @@ export function createUser(data: {
   return request.post('/api/users/create', data)
 }
 
+export function updateUser(id: number, data: {
+  projects?: Array<{ projectId: number; roleId: number; extraPermissions?: string[] }>
+}): Promise<ApiResponse<null>> {
+  return request.put(`/api/users/${id}`, data)
+}
+
 export function deleteUser(id: number): Promise<ApiResponse<null>> {
   return request.delete(`/api/users/${id}`)
 }
