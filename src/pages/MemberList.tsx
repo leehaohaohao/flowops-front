@@ -121,18 +121,21 @@ export default function MemberList() {
           {
             title: '操作',
             width: 140,
-            render: (_: unknown, record: GroupMember) => (
-              <Space size="small">
-                <Button size="small" onClick={() => openEditRole(record)}>
-                  修改角色
-                </Button>
-                <Popconfirm title="确认移除该成员？" onConfirm={() => handleRemove(record.userId)}>
-                  <Button size="small" danger>
-                    移除
+            render: (_: unknown, record: GroupMember) => {
+              const isSelf = record.username === userInfo.username
+              return (
+                <Space size="small">
+                  <Button size="small" disabled={isSelf} onClick={() => openEditRole(record)}>
+                    修改角色
                   </Button>
-                </Popconfirm>
-              </Space>
-            ),
+                  <Popconfirm title="确认移除该成员？" onConfirm={() => handleRemove(record.userId)} disabled={isSelf}>
+                    <Button size="small" danger disabled={isSelf}>
+                      移除
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              )
+            },
           },
         ]
       : []),
