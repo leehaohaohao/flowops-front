@@ -52,7 +52,7 @@ export interface GroupMember {
   username: string
   roleId: number
   roleName: string
-  createTime: string
+  joinTime: string
 }
 
 export interface Role {
