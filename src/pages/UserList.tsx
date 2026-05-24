@@ -45,8 +45,8 @@ export default function UserList() {
   const [form] = Form.useForm()
 
   useEffect(() => {
-    if (!userInfo.isSuperAdmin) navigate('/dashboard', { replace: true })
-  }, [userInfo.isSuperAdmin])
+    if (!userInfo.superAdmin) navigate('/dashboard', { replace: true })
+  }, [userInfo.superAdmin])
 
   const fetchList = () => {
     setLoading(true)
@@ -224,7 +224,7 @@ export default function UserList() {
       },
     },
     { title: '创建时间', dataIndex: 'createTime', width: 180, render: (val: string) => formatTime(val) },
-    ...(userInfo.isSuperAdmin
+    ...(userInfo.superAdmin
       ? [
           {
             title: '操作',
@@ -247,7 +247,7 @@ export default function UserList() {
   ]
 
   // 过滤可选项目：superAdmin 全部，主管只能选自己管理的项目
-  const availableProjects = userInfo.isSuperAdmin
+  const availableProjects = userInfo.superAdmin
     ? projects
     : projects.filter((p) => isSupervisor(userInfo, p.id))
 
@@ -345,7 +345,7 @@ export default function UserList() {
                           <Select
                             placeholder="先选项目"
                             options={(rolesMap[form.getFieldValue(['projects', index, 'projectId'])] || [])
-                              .filter((r) => userInfo.isSuperAdmin || r.name !== 'supervisor')
+                              .filter((r) => userInfo.superAdmin || r.name !== 'supervisor')
                               .map((r) => ({ value: r.id, label: `${r.name}${r.isPreset ? ' (预设)' : ''}` }))}
                             onChange={(val) => handleRoleChange(val, index)}
                           />

@@ -35,8 +35,8 @@ export default function CrossAccessPage() {
   const [rawList, setRawList] = useState<CrossAccess[]>([])
 
   useEffect(() => {
-    if (!userInfo.isSuperAdmin) navigate('/dashboard', { replace: true })
-  }, [userInfo.isSuperAdmin])
+    if (!userInfo.superAdmin) navigate('/dashboard', { replace: true })
+  }, [userInfo.superAdmin])
   const [users, setUsers] = useState<SysUser[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)

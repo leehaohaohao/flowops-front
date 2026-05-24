@@ -31,7 +31,7 @@ export default function ProjectList() {
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
 
-  const canManage = userInfo.isSuperAdmin || isSupervisor(userInfo)
+  const canManage = userInfo.superAdmin || isSupervisor(userInfo)
 
   const fetchList = () => {
     setLoading(true)

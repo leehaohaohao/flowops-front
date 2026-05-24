@@ -17,7 +17,7 @@ export interface UserProject {
 
 export interface UserInfo {
   username: string
-  isSuperAdmin: boolean
+  superAdmin: boolean
   projects: UserProject[]
   projectPermissions?: Record<string, string[]>
 }
@@ -31,7 +31,7 @@ export interface DashboardStats {
 export interface SysUser {
   id: number
   username: string
-  isSuperAdmin: boolean
+  isSuperAdmin: boolean | number
   projects: Array<{ id: number; name: string; roleName: string }>
   createTime: string
 }

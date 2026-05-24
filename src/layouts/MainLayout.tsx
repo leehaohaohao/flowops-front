@@ -23,14 +23,14 @@ function buildMenuItems(userInfo: UserInfo) {
     { key: '/logs', icon: <FileTextOutlined />, label: '日志查看' },
   ]
 
-  if (userInfo.isSuperAdmin) {
+  if (userInfo.superAdmin) {
     items.push(
       { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
       { key: '/access', icon: <KeyOutlined />, label: '跨项目授权' },
     )
   }
 
-  if (userInfo.isSuperAdmin || userInfo.projects?.some((p) => p.roleName === 'supervisor')) {
+  if (userInfo.superAdmin || userInfo.projects?.some((p) => p.roleName === 'supervisor')) {
     items.push({ key: '/roles', icon: <SafetyOutlined />, label: '角色管理' })
   }
 
@@ -109,7 +109,7 @@ export default function MainLayout({
           }}
         >
           <span>{userInfo.username}</span>
-          {userInfo.isSuperAdmin && <Tag color="red">超级管理员</Tag>}
+          {userInfo.superAdmin && <Tag color="red">超级管理员</Tag>}
           {userInfo.projects
             ?.filter((p) => p.roleName === 'supervisor')
             .map((p) => (

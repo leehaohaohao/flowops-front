@@ -39,17 +39,17 @@ export default function RoleList() {
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
 
-  const canManage = userInfo.isSuperAdmin || isSupervisor(userInfo)
+  const canManage = userInfo.superAdmin || isSupervisor(userInfo)
 
   useEffect(() => {
-    if (!userInfo.isSuperAdmin && !isSupervisor(userInfo)) {
+    if (!userInfo.superAdmin && !isSupervisor(userInfo)) {
       navigate('/dashboard', { replace: true })
     }
-  }, [userInfo.isSuperAdmin])
+  }, [userInfo.superAdmin])
 
   const fetchList = () => {
     setLoading(true)
-    const fetcher = userInfo.isSuperAdmin
+    const fetcher = userInfo.superAdmin
       ? getProjectList().then((res) => {
           setProjects(res.data)
           return Promise.all(res.data.map((p) => getProjectRoles(p.id).then((r) => r.data)))
@@ -108,7 +108,7 @@ export default function RoleList() {
         })
         message.success('更新成功')
       } else {
-        const projectId = userInfo.isSuperAdmin
+        const projectId = userInfo.superAdmin
           ? values.projectId
           : userInfo.projects?.find((p) => p.roleName === 'supervisor')?.id
         if (!projectId) {
@@ -211,7 +211,7 @@ export default function RoleList() {
         width={520}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          {userInfo.isSuperAdmin && !editing && (
+          {userInfo.superAdmin && !editing && (
             <Form.Item name="projectId" label="所属项目" rules={[{ required: true, message: '请选择项目' }]}>
               <Select
                 placeholder="选择项目"

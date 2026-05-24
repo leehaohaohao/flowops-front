@@ -39,13 +39,13 @@ export default function MemberList() {
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
 
-  const canManage = userInfo.isSuperAdmin || isSupervisor(userInfo, pid)
+  const canManage = userInfo.superAdmin || isSupervisor(userInfo, pid)
 
   useEffect(() => {
-    if (!userInfo.isSuperAdmin && !isSupervisor(userInfo, pid)) {
+    if (!userInfo.superAdmin && !isSupervisor(userInfo, pid)) {
       navigate('/dashboard', { replace: true })
     }
-  }, [userInfo.isSuperAdmin, pid])
+  }, [userInfo.superAdmin, pid])
 
   const fetchMembers = () => {
     setLoading(true)

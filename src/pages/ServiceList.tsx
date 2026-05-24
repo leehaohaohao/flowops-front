@@ -78,7 +78,7 @@ export default function ServiceList() {
     }
   }
 
-  const canCreate = userInfo.isSuperAdmin || (pid && hasPermission(userInfo, { projectId: pid } as DeployService, 'EDIT_CONFIG'))
+  const canCreate = userInfo.superAdmin || (pid && hasPermission(userInfo, { projectId: pid } as DeployService, 'EDIT_CONFIG'))
 
   const columns: TableProps<DeployService>['columns'] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
