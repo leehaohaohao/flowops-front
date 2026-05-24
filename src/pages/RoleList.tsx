@@ -19,7 +19,7 @@ import {
 import type { TableProps } from 'antd'
 import { createRole, deleteRole, getProjectRoles, getRolePermissions, updateRole } from '@/api/roles'
 import { getProjectList } from '@/api/projects'
-import type { Project } from '@/api/projects'
+import type { Project } from '@/types'
 import { UserContext } from '@/App'
 import { isSupervisor, PERM_LABEL } from '@/utils/permission'
 import type { Role } from '@/types'
