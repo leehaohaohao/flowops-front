@@ -119,14 +119,27 @@ export default function UserList() {
     // 构建 projectId -> roles 映射
     const loadedRoles: Record<number, Role[]> = {}
     projectIds.forEach((id, i) => { loadedRoles[id] = rolesResults[i] })
-    // 预填表单
+    // 查找角色ID
+    const projectEntries = record.projects.map((p, index) => {
+      const roleId = loadedRoles[p.id]?.find((r) => r.name === p.roleName)?.id
+      return { projectId: p.id, roleId, index }
+    })
+    // 先预填表单（含 roleId），再加载权限
     form.setFieldsValue({
       username: record.username,
-      projects: record.projects.map((p) => ({
-        projectId: p.id,
-        roleId: loadedRoles[p.id]?.find((r) => r.name === p.roleName)?.id,
-      })),
+      projects: projectEntries.map(({ projectId, roleId }) => ({ projectId, roleId })),
     })
+    // 加载每个角色的权限
+    await Promise.all(
+      projectEntries.map(async ({ roleId, index }) => {
+        if (!roleId) return
+        try {
+          const res = await getRolePermissions(roleId)
+          setRolePermsMap((prev) => ({ ...prev, [index]: res.data }))
+          form.setFieldsValue({ projects: { [index]: { extraPermissions: res.data } } })
+        } catch { /* ignore */ }
+      }),
+    )
     setModalOpen(true)
   }
 
