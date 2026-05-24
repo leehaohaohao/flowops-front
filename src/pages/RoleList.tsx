@@ -29,7 +29,7 @@ const { Title } = Typography
 const ALL_PERMISSIONS = Object.entries(PERM_LABEL).map(([value, label]) => ({ value, label }))
 
 export default function RoleList() {
-  const userInfo = useContext(UserContext)!
+  const userInfo = useContext(UserContext)
   const navigate = useNavigate()
   const [list, setList] = useState<Role[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -38,6 +38,8 @@ export default function RoleList() {
   const [editing, setEditing] = useState<Role | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
+
+  if (!userInfo) return null
 
   const canManage = userInfo.superAdmin || isSupervisor(userInfo)
 

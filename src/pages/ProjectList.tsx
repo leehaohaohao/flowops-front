@@ -23,13 +23,15 @@ const { Title } = Typography
 
 export default function ProjectList() {
   const navigate = useNavigate()
-  const userInfo = useContext(UserContext)!
+  const userInfo = useContext(UserContext)
   const [list, setList] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
+
+  if (!userInfo) return null
 
   const canManage = userInfo.superAdmin || isSupervisor(userInfo)
 

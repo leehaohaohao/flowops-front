@@ -30,10 +30,11 @@ const { Title } = Typography
 const ALL_PERMISSIONS = Object.entries(PERM_LABEL).map(([value, label]) => ({ value, label }))
 
 export default function CrossAccessPage() {
-  const userInfo = useContext(UserContext)!
+  const userInfo = useContext(UserContext)
   const navigate = useNavigate()
   const [rawList, setRawList] = useState<CrossAccess[]>([])
 
+  if (!userInfo) return null
   useEffect(() => {
     if (!userInfo.superAdmin) navigate('/dashboard', { replace: true })
   }, [userInfo.superAdmin])

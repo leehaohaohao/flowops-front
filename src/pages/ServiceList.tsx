@@ -33,10 +33,12 @@ const serviceTypeMap: Record<string, string> = {
 export default function ServiceList() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
-  const userInfo = useContext(UserContext)!
+  const userInfo = useContext(UserContext)
   const [list, setList] = useState<DeployService[]>([])
   const [loading, setLoading] = useState(true)
   const [projectName, setProjectName] = useState('')
+
+  if (!userInfo) return null
 
   const pid = Number(projectId)
 

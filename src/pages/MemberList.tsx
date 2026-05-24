@@ -26,7 +26,7 @@ const { Title } = Typography
 export default function MemberList() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
-  const userInfo = useContext(UserContext)!
+  const userInfo = useContext(UserContext)
   const pid = Number(projectId)
 
   const [members, setMembers] = useState<GroupMember[]>([])
@@ -38,6 +38,8 @@ export default function MemberList() {
   const [editing, setEditing] = useState<GroupMember | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
+
+  if (!userInfo) return null
 
   const canManage = userInfo.superAdmin || isSupervisor(userInfo, pid)
 

@@ -32,7 +32,7 @@ const { Title } = Typography
 const ALL_PERMISSIONS = Object.entries(PERM_LABEL).map(([value, label]) => ({ value, label }))
 
 export default function UserList() {
-  const userInfo = useContext(UserContext)!
+  const userInfo = useContext(UserContext)
   const navigate = useNavigate()
   const [list, setList] = useState<SysUser[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -42,6 +42,8 @@ export default function UserList() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<SysUser | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  if (!userInfo) return null
   const [form] = Form.useForm()
 
   useEffect(() => {
