@@ -18,8 +18,8 @@ export function hasPermission(userInfo: UserInfo, service: DeployService, permCo
   return perms?.includes(permCode) ?? false
 }
 
-export function isSupervisor(userInfo: UserInfo, groupId?: number): boolean {
+export function isSupervisor(userInfo: UserInfo, projectId?: number): boolean {
   if (userInfo.isSuperAdmin) return true
-  if (!groupId) return userInfo.groups?.some((g) => g.isSupervisor) ?? false
-  return userInfo.groups?.some((g) => g.id === groupId && g.isSupervisor) ?? false
+  if (!projectId) return userInfo.projects?.some((p) => p.isSupervisor) ?? false
+  return userInfo.projects?.some((p) => p.id === projectId && p.isSupervisor) ?? false
 }

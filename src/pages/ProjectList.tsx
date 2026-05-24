@@ -7,15 +7,13 @@ import {
   message,
   Modal,
   Popconfirm,
-  Select,
   Space,
   Table,
+  Tooltip,
   Typography,
 } from 'antd'
 import type { TableProps } from 'antd'
 import { createProject, deleteProject, getProjectList, updateProject } from '@/api/projects'
-import { getGroupList } from '@/api/groups'
-import type { Group } from '@/api/groups'
 import { UserContext } from '@/App'
 import { formatTime } from '@/utils/format'
 import { isSupervisor } from '@/utils/permission'
@@ -31,7 +29,6 @@ export default function ProjectList() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [groups, setGroups] = useState<Group[]>([])
   const [form] = Form.useForm()
 
   const canManage = userInfo.isSuperAdmin || isSupervisor(userInfo)
@@ -48,15 +45,9 @@ export default function ProjectList() {
     fetchList()
   }, [])
 
-  const openCreate = async () => {
+  const openCreate = () => {
     setEditing(null)
     form.resetFields()
-    if (userInfo.isSuperAdmin && groups.length === 0) {
-      try {
-        const res = await getGroupList()
-        setGroups(res.data)
-      } catch { /* ignore */ }
-    }
     setModalOpen(true)
   }
 
@@ -74,14 +65,7 @@ export default function ProjectList() {
         await updateProject(editing.id, values)
         message.success('更新成功')
       } else {
-        const groupId = userInfo.isSuperAdmin
-          ? values.groupId
-          : userInfo.groups.find((g) => g.isSupervisor)?.id
-        if (!groupId) {
-          message.error('请选择项目组')
-          return
-        }
-        await createProject({ ...values, groupId })
+        await createProject(values)
         message.success('创建成功')
       }
       setModalOpen(false)
@@ -116,24 +100,50 @@ export default function ProjectList() {
       ),
     },
     { title: '描述', dataIndex: 'description', ellipsis: true },
+    {
+      title: '成员数',
+      dataIndex: 'memberCount',
+      width: 80,
+      render: (val?: number) => val ?? '-',
+    },
+    {
+      title: '默认',
+      dataIndex: 'isDefault',
+      width: 70,
+      render: (val?: number) => (val === 1 ? '是' : ''),
+    },
     { title: '创建时间', dataIndex: 'createTime', width: 180, render: (val: string) => formatTime(val) },
     ...(canManage
       ? [
           {
             title: '操作',
-            width: 140,
-            render: (_: unknown, record: Project) => (
-              <Space size="small">
-                <Button size="small" onClick={() => openEdit(record)}>
-                  编辑
-                </Button>
-                <Popconfirm title="确认删除该项目？需先移除项目下所有服务。" onConfirm={() => handleDelete(record.id)}>
-                  <Button size="small" danger>
-                    删除
+            width: 200,
+            render: (_: unknown, record: Project) => {
+              const isDefault = record.isDefault === 1
+              return (
+                <Space size="small">
+                  <Button size="small" onClick={() => navigate(`/projects/${record.id}/members`)}>
+                    成员管理
                   </Button>
-                </Popconfirm>
-              </Space>
-            ),
+                  <Button size="small" onClick={() => openEdit(record)}>
+                    编辑
+                  </Button>
+                  {isDefault ? (
+                    <Tooltip title="默认项目不可删除">
+                      <Button size="small" danger disabled>
+                        删除
+                      </Button>
+                    </Tooltip>
+                  ) : (
+                    <Popconfirm title="确认删除该项目？需先移除项目下所有服务。" onConfirm={() => handleDelete(record.id)}>
+                      <Button size="small" danger>
+                        删除
+                      </Button>
+                    </Popconfirm>
+                  )}
+                </Space>
+              )
+            },
           },
         ]
       : []),
@@ -168,14 +178,6 @@ export default function ProjectList() {
         confirmLoading={submitting}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          {userInfo.isSuperAdmin && !editing && (
-            <Form.Item name="groupId" label="所属项目组" rules={[{ required: true, message: '请选择项目组' }]}>
-              <Select
-                placeholder="选择项目组"
-                options={groups.map((g) => ({ value: g.id, label: g.name }))}
-              />
-            </Form.Item>
-          )}
           <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input />
           </Form.Item>

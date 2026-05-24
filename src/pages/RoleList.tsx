@@ -17,9 +17,9 @@ import {
   Typography,
 } from 'antd'
 import type { TableProps } from 'antd'
-import { createRole, deleteRole, getGroupRoles, getRolePermissions, updateRole } from '@/api/roles'
-import { getGroupList } from '@/api/groups'
-import type { Group } from '@/api/groups'
+import { createRole, deleteRole, getProjectRoles, getRolePermissions, updateRole } from '@/api/roles'
+import { getProjectList } from '@/api/projects'
+import type { Project } from '@/api/projects'
 import { UserContext } from '@/App'
 import { isSupervisor, PERM_LABEL } from '@/utils/permission'
 import type { Role } from '@/types'
@@ -32,7 +32,7 @@ export default function RoleList() {
   const userInfo = useContext(UserContext)!
   const navigate = useNavigate()
   const [list, setList] = useState<Role[]>([])
-  const [groups, setGroups] = useState<Group[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Role | null>(null)
@@ -50,14 +50,14 @@ export default function RoleList() {
   const fetchList = () => {
     setLoading(true)
     const fetcher = userInfo.isSuperAdmin
-      ? getGroupList().then((res) => {
-          setGroups(res.data)
-          return Promise.all(res.data.map((g) => getGroupRoles(g.id).then((r) => r.data)))
+      ? getProjectList().then((res) => {
+          setProjects(res.data)
+          return Promise.all(res.data.map((p) => getProjectRoles(p.id).then((r) => r.data)))
         })
       : Promise.all(
-          (userInfo.groups || [])
-            .filter((g) => g.isSupervisor)
-            .map((g) => getGroupRoles(g.id).then((r) => r.data))
+          (userInfo.projects || [])
+            .filter((p) => p.isSupervisor)
+            .map((p) => getProjectRoles(p.id).then((r) => r.data))
         )
 
     fetcher
@@ -88,10 +88,10 @@ export default function RoleList() {
         name: record.name,
         description: record.description,
         permissions: res.data,
-        groupId: record.groupId,
+        projectId: record.projectId,
       })
     } catch {
-      form.setFieldsValue({ name: record.name, description: record.description, permissions: [], groupId: record.groupId })
+      form.setFieldsValue({ name: record.name, description: record.description, permissions: [], projectId: record.projectId })
     }
     setModalOpen(true)
   }
@@ -108,16 +108,16 @@ export default function RoleList() {
         })
         message.success('更新成功')
       } else {
-        const groupId = userInfo.isSuperAdmin
-          ? values.groupId
-          : userInfo.groups?.find((g) => g.isSupervisor)?.id
-        if (!groupId) {
-          message.error('请选择项目组')
+        const projectId = userInfo.isSuperAdmin
+          ? values.projectId
+          : userInfo.projects?.find((p) => p.isSupervisor)?.id
+        if (!projectId) {
+          message.error('请选择项目')
           return
         }
         await createRole({
           name: values.name,
-          groupId,
+          projectId,
           description: values.description,
           permissions: values.permissions || [],
         })
@@ -212,10 +212,10 @@ export default function RoleList() {
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           {userInfo.isSuperAdmin && !editing && (
-            <Form.Item name="groupId" label="所属项目组" rules={[{ required: true, message: '请选择项目组' }]}>
+            <Form.Item name="projectId" label="所属项目" rules={[{ required: true, message: '请选择项目' }]}>
               <Select
-                placeholder="选择项目组"
-                options={groups.map((g) => ({ value: g.id, label: g.name }))}
+                placeholder="选择项目"
+                options={projects.map((p) => ({ value: p.id, label: p.name }))}
               />
             </Form.Item>
           )}

@@ -1,15 +1,15 @@
 import request from '@/utils/request'
 import type { ApiResponse, Project } from '@/types'
 
-export function getProjectList(groupId?: number): Promise<ApiResponse<Project[]>> {
-  return request.get('/api/projects', { params: groupId ? { groupId } : undefined })
+export function getProjectList(): Promise<ApiResponse<Project[]>> {
+  return request.get('/api/projects')
 }
 
 export function getProject(id: number): Promise<ApiResponse<Project>> {
   return request.get(`/api/projects/${id}`)
 }
 
-export function createProject(data: { groupId: number; name: string; description?: string }): Promise<ApiResponse<null>> {
+export function createProject(data: { name: string; description?: string }): Promise<ApiResponse<null>> {
   return request.post('/api/projects', data)
 }
 

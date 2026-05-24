@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { Button, Layout, Menu, Tag } from 'antd'
 import {
-  AppstoreOutlined,
   CloudServerOutlined,
   DashboardOutlined,
   FileTextOutlined,
@@ -26,13 +25,12 @@ function buildMenuItems(userInfo: UserInfo) {
 
   if (userInfo.isSuperAdmin) {
     items.push(
-      { key: '/groups', icon: <AppstoreOutlined />, label: '项目组管理' },
       { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
-      { key: '/access', icon: <KeyOutlined />, label: '跨组授权' },
+      { key: '/access', icon: <KeyOutlined />, label: '跨项目授权' },
     )
   }
 
-  if (userInfo.isSuperAdmin || userInfo.groups?.some((g) => g.isSupervisor)) {
+  if (userInfo.isSuperAdmin || userInfo.projects?.some((p) => p.isSupervisor)) {
     items.push({ key: '/roles', icon: <SafetyOutlined />, label: '角色管理' })
   }
 
@@ -112,11 +110,11 @@ export default function MainLayout({
         >
           <span>{userInfo.username}</span>
           {userInfo.isSuperAdmin && <Tag color="red">超级管理员</Tag>}
-          {userInfo.groups
-            ?.filter((g) => g.isSupervisor)
-            .map((g) => (
-              <Tag key={g.id} color="blue">
-                {g.name}主管
+          {userInfo.projects
+            ?.filter((p) => p.isSupervisor)
+            .map((p) => (
+              <Tag key={p.id} color="blue">
+                {p.name}主管
               </Tag>
             ))}
           <Button type="link" icon={<LogoutOutlined />} onClick={handleLogout}>

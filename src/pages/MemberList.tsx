@@ -12,9 +12,9 @@ import {
   Typography,
 } from 'antd'
 import type { TableProps } from 'antd'
-import { addMember, getGroupMembers, removeMember, updateMemberRole } from '@/api/members'
-import { getGroupRoles } from '@/api/roles'
-import { getGroup } from '@/api/groups'
+import { addMember, getProjectMembers, removeMember, updateMemberRole } from '@/api/members'
+import { getProjectRoles } from '@/api/roles'
+import { getProject } from '@/api/projects'
 import { getUserList } from '@/api/users'
 import { UserContext } from '@/App'
 import { formatTime } from '@/utils/format'
@@ -24,43 +24,43 @@ import type { GroupMember, Role, SysUser } from '@/types'
 const { Title } = Typography
 
 export default function MemberList() {
-  const { groupId } = useParams<{ groupId: string }>()
+  const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const userInfo = useContext(UserContext)!
-  const gid = Number(groupId)
+  const pid = Number(projectId)
 
   const [members, setMembers] = useState<GroupMember[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [users, setUsers] = useState<SysUser[]>([])
-  const [groupName, setGroupName] = useState('')
+  const [projectName, setProjectName] = useState('')
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<GroupMember | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
 
-  const canManage = userInfo.isSuperAdmin || isSupervisor(userInfo, gid)
+  const canManage = userInfo.isSuperAdmin || isSupervisor(userInfo, pid)
 
   useEffect(() => {
-    if (!userInfo.isSuperAdmin && !isSupervisor(userInfo, gid)) {
+    if (!userInfo.isSuperAdmin && !isSupervisor(userInfo, pid)) {
       navigate('/dashboard', { replace: true })
     }
-  }, [userInfo.isSuperAdmin, gid])
+  }, [userInfo.isSuperAdmin, pid])
 
   const fetchMembers = () => {
     setLoading(true)
-    getGroupMembers(gid)
+    getProjectMembers(pid)
       .then((res) => setMembers(res.data))
       .catch((err) => message.error((err as Error).message || '获取成员列表失败'))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
-    if (!gid) return
-    getGroup(gid).then((res) => setGroupName(res.data.name)).catch(() => {})
-    getGroupRoles(gid).then((res) => setRoles(res.data)).catch(() => {})
+    if (!pid) return
+    getProject(pid).then((res) => setProjectName(res.data.name)).catch(() => {})
+    getProjectRoles(pid).then((res) => setRoles(res.data)).catch(() => {})
     fetchMembers()
-  }, [gid])
+  }, [pid])
 
   const openAdd = async () => {
     setEditing(null)
@@ -83,10 +83,10 @@ export default function MemberList() {
       const values = await form.validateFields()
       setSubmitting(true)
       if (editing) {
-        await updateMemberRole(gid, editing.userId, { roleId: values.roleId })
+        await updateMemberRole(pid, editing.userId, { roleId: values.roleId })
         message.success('角色更新成功')
       } else {
-        await addMember(gid, { userId: values.userId, roleId: values.roleId })
+        await addMember(pid, { userId: values.userId, roleId: values.roleId })
         message.success('成员添加成功')
       }
       setModalOpen(false)
@@ -103,7 +103,7 @@ export default function MemberList() {
 
   const handleRemove = async (userId: number) => {
     try {
-      await removeMember(gid, userId)
+      await removeMember(pid, userId)
       message.success('移除成功')
       fetchMembers()
     } catch (err) {
@@ -149,9 +149,9 @@ export default function MemberList() {
         }}
       >
         <Space>
-          <Button onClick={() => navigate('/groups')}>返回项目组列表</Button>
+          <Button onClick={() => navigate('/projects')}>返回项目列表</Button>
           <Title level={4} style={{ margin: 0 }}>
-            {groupName ? `${groupName} — 成员管理` : '成员管理'}
+            {projectName ? `${projectName} — 成员管理` : '成员管理'}
           </Title>
         </Space>
         {canManage && (

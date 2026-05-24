@@ -9,7 +9,7 @@ export interface LoginRequest {
   password: string
 }
 
-export interface UserGroup {
+export interface UserProject {
   id: number
   name: string
   roleName: string
@@ -19,7 +19,7 @@ export interface UserGroup {
 export interface UserInfo {
   username: string
   isSuperAdmin: boolean
-  groups: UserGroup[]
+  projects: UserProject[]
   projectPermissions?: Record<string, string[]>
 }
 
@@ -34,18 +34,19 @@ export interface SysUser {
   username: string
   role: string
   isSuperAdmin?: boolean | number
-  groupId?: number
+  projectId?: number
   roleName?: string
   createTime: string
 }
 
 export interface Project {
   id: number
-  groupId: number
   name: string
   description: string
+  isDefault?: number
+  memberCount?: number
   createTime: string
-  updateTime: string
+  updateTime?: string
 }
 
 export interface GroupMember {
@@ -61,7 +62,7 @@ export interface Role {
   name: string
   description: string
   isPreset: boolean
-  groupId?: number
+  projectId?: number
 }
 
 export interface CrossAccess {

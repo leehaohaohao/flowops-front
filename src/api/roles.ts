@@ -5,8 +5,8 @@ export function getPresetRoles(): Promise<ApiResponse<Role[]>> {
   return request.get('/api/roles/presets')
 }
 
-export function getGroupRoles(groupId: number): Promise<ApiResponse<Role[]>> {
-  return request.get('/api/roles', { params: { groupId } })
+export function getProjectRoles(projectId: number): Promise<ApiResponse<Role[]>> {
+  return request.get('/api/roles', { params: { projectId } })
 }
 
 export function getRolePermissions(roleId: number): Promise<ApiResponse<string[]>> {
@@ -15,7 +15,7 @@ export function getRolePermissions(roleId: number): Promise<ApiResponse<string[]
 
 export function createRole(data: {
   name: string
-  groupId: number
+  projectId: number
   description?: string
   permissions: string[]
 }): Promise<ApiResponse<null>> {

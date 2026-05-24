@@ -185,7 +185,7 @@ export default function CrossAccessPage() {
         }}
       >
         <Title level={4} style={{ margin: 0 }}>
-          跨组授权
+          跨项目授权
         </Title>
         <Button type="primary" onClick={() => { form.resetFields(); setModalOpen(true) }}>
           授权
@@ -211,7 +211,7 @@ export default function CrossAccessPage() {
       )}
 
       <Modal
-        title="跨组授权"
+        title="跨项目授权"
         open={modalOpen}
         onOk={handleGrant}
         onCancel={() => setModalOpen(false)}

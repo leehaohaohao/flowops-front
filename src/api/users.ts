@@ -8,7 +8,7 @@ export function getUserList(): Promise<ApiResponse<SysUser[]>> {
 export function createUser(data: {
   username: string
   password: string
-  groupId?: number
+  projectId?: number
   roleId: number
   extraPermissions?: string[]
 }): Promise<ApiResponse<null>> {

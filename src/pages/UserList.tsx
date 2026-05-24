@@ -17,12 +17,12 @@ import {
 } from 'antd'
 import type { TableProps } from 'antd'
 import { createUser, deleteUser, getUserList } from '@/api/users'
-import { getGroupList, type Group } from '@/api/groups'
-import { getGroupRoles, getRolePermissions } from '@/api/roles'
+import { getProjectList } from '@/api/projects'
+import { getProjectRoles, getRolePermissions } from '@/api/roles'
 import { UserContext } from '@/App'
 import { formatTime } from '@/utils/format'
 import { isSupervisor, PERM_LABEL } from '@/utils/permission'
-import type { Role, SysUser } from '@/types'
+import type { Project, Role, SysUser } from '@/types'
 
 const { Title } = Typography
 
@@ -32,7 +32,7 @@ export default function UserList() {
   const userInfo = useContext(UserContext)!
   const navigate = useNavigate()
   const [list, setList] = useState<SysUser[]>([])
-  const [groups, setGroups] = useState<Group[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [rolePerms, setRolePerms] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,7 +40,7 @@ export default function UserList() {
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
 
-  const selectedGroupId = Form.useWatch('groupId', form)
+  const selectedProjectId = Form.useWatch('projectId', form)
 
   useEffect(() => {
     if (!userInfo.isSuperAdmin) navigate('/dashboard', { replace: true })
@@ -56,24 +56,24 @@ export default function UserList() {
 
   useEffect(() => {
     fetchList()
-    getGroupList().then((res) => setGroups(res.data)).catch(() => {})
+    getProjectList().then((res) => setProjects(res.data)).catch(() => {})
   }, [])
 
-  // 查找默认项目组
-  const defaultGroup = groups.find((g) => g.isDefault === 1)
+  // 查找默认项目
+  const defaultProject = projects.find((p) => p.isDefault === 1)
 
-  // 项目组变化时重新获取角色列表
+  // 项目变化时重新获取角色列表
   useEffect(() => {
-    const gid = selectedGroupId || defaultGroup?.id
-    if (!gid) {
+    const pid = selectedProjectId || defaultProject?.id
+    if (!pid) {
       setRoles([])
       form.setFieldsValue({ roleId: undefined })
       return
     }
-    getGroupRoles(gid)
+    getProjectRoles(pid)
       .then((res) => setRoles(res.data))
       .catch(() => {})
-  }, [selectedGroupId, defaultGroup?.id])
+  }, [selectedProjectId, defaultProject?.id])
 
   // 角色变化时获取角色已有权限
   const handleRoleChange = async (roleId: number) => {
@@ -103,7 +103,7 @@ export default function UserList() {
       await createUser({
         username: values.username,
         password: values.password,
-        groupId: values.groupId || undefined,
+        projectId: values.projectId || undefined,
         roleId: values.roleId,
         extraPermissions: (values.extraPermissions || []).filter(
           (p: string) => !rolePerms.includes(p),
@@ -162,10 +162,10 @@ export default function UserList() {
       : []),
   ]
 
-  // 过滤可选项目组：superAdmin 全部，主管只能选自己管理的组
-  const availableGroups = userInfo.isSuperAdmin
-    ? groups
-    : groups.filter((g) => isSupervisor(userInfo, g.id))
+  // 过滤可选项目：superAdmin 全部，主管只能选自己管理的项目
+  const availableProjects = userInfo.isSuperAdmin
+    ? projects
+    : projects.filter((p) => isSupervisor(userInfo, p.id))
 
   // 过滤可选角色：不能分配 supervisor 角色（除非自己是 superAdmin）
   const availableRoles = userInfo.isSuperAdmin
@@ -206,11 +206,11 @@ export default function UserList() {
           <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
             <Input.Password />
           </Form.Item>
-          <Form.Item name="groupId" label="项目组" help="不选则归入默认项目组">
+          <Form.Item name="projectId" label="项目" help="不选则归入默认项目">
             <Select
-              placeholder="选择项目组（可留空）"
+              placeholder="选择项目（可留空）"
               allowClear
-              options={availableGroups.map((g) => ({ value: g.id, label: g.name }))}
+              options={availableProjects.map((p) => ({ value: p.id, label: p.name }))}
             />
           </Form.Item>
           <Form.Item name="roleId" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
