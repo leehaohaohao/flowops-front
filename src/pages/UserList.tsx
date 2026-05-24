@@ -58,17 +58,21 @@ export default function UserList() {
     getGroupList().then((res) => setGroups(res.data)).catch(() => {})
   }, [])
 
+  // 查找默认项目组
+  const defaultGroup = groups.find((g) => g.isDefault === 1)
+
   // 项目组变化时重新获取角色列表
   useEffect(() => {
-    if (!selectedGroupId) {
+    const gid = selectedGroupId || defaultGroup?.id
+    if (!gid) {
       setRoles([])
       form.setFieldsValue({ roleId: undefined })
       return
     }
-    getGroupRoles(selectedGroupId)
+    getGroupRoles(gid)
       .then((res) => setRoles(res.data))
       .catch(() => {})
-  }, [selectedGroupId])
+  }, [selectedGroupId, defaultGroup?.id])
 
   // 角色变化时获取角色已有权限
   const handleRoleChange = async (roleId: number) => {
@@ -87,7 +91,6 @@ export default function UserList() {
 
   const openCreate = () => {
     form.resetFields()
-    setRoles([])
     setRolePerms([])
     setModalOpen(true)
   }
