@@ -17,6 +17,7 @@ import { createProject, deleteProject, getProjectList, updateProject } from '@/a
 import { getGroupList } from '@/api/groups'
 import type { Group } from '@/api/groups'
 import { UserContext } from '@/App'
+import { formatTime } from '@/utils/format'
 import { isSupervisor } from '@/utils/permission'
 import type { Project } from '@/types'
 
@@ -115,7 +116,7 @@ export default function ProjectList() {
       ),
     },
     { title: '描述', dataIndex: 'description', ellipsis: true },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180 },
+    { title: '创建时间', dataIndex: 'createTime', width: 180, render: (val: string) => formatTime(val) },
     ...(canManage
       ? [
           {

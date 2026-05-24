@@ -41,7 +41,8 @@ export interface Project {
   groupId: number
   name: string
   description: string
-  createdAt: string
+  createTime: string
+  updateTime: string
 }
 
 export interface DeployService {

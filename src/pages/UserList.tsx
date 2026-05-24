@@ -13,6 +13,7 @@ import {
 } from 'antd'
 import type { TableProps } from 'antd'
 import { createUser, deleteUser, getUserList } from '@/api/users'
+import { formatTime } from '@/utils/format'
 import type { SysUser } from '@/types'
 
 const { Title } = Typography
@@ -77,7 +78,7 @@ export default function UserList() {
         </Tag>
       ),
     },
-    { title: '创建时间', dataIndex: 'createTime', width: 180 },
+    { title: '创建时间', dataIndex: 'createTime', width: 180, render: (val: string) => formatTime(val) },
     {
       title: '操作',
       width: 80,
