@@ -33,7 +33,7 @@ export default function ProjectList() {
 
   if (!userInfo) return null
 
-  const canManage = userInfo.superAdmin || isSupervisor(userInfo)
+  const canManage = userInfo.superAdmin || isSupervisor(userInfo) || Object.values(userInfo.projectPermissions || {}).some((perms) => perms.includes('MANAGE_MEMBERS'))
 
   const fetchList = () => {
     setLoading(true)
@@ -128,26 +128,34 @@ export default function ProjectList() {
             width: 200,
             render: (_: unknown, record: Project) => {
               const isDefault = record.isDefault === 1
+              const canManageMembers = userInfo.superAdmin || isSupervisor(userInfo, record.id) || (userInfo.projectPermissions?.[String(record.id)]?.includes('MANAGE_MEMBERS') ?? false)
+              const canEditProject = userInfo.superAdmin || isSupervisor(userInfo, record.id)
               return (
                 <Space size="small">
-                  <Button size="small" onClick={() => navigate(`/projects/${record.id}/members`)}>
-                    成员管理
-                  </Button>
-                  <Button size="small" onClick={() => openEdit(record)}>
-                    编辑
-                  </Button>
-                  {isDefault ? (
-                    <Tooltip title="默认项目不可删除">
-                      <Button size="small" danger disabled>
-                        删除
-                      </Button>
-                    </Tooltip>
-                  ) : (
-                    <Popconfirm title="确认删除该项目？需先移除项目下所有服务。" onConfirm={() => handleDelete(record.id)}>
-                      <Button size="small" danger>
-                        删除
-                      </Button>
-                    </Popconfirm>
+                  {canManageMembers && (
+                    <Button size="small" onClick={() => navigate(`/projects/${record.id}/members`)}>
+                      成员管理
+                    </Button>
+                  )}
+                  {canEditProject && (
+                    <Button size="small" onClick={() => openEdit(record)}>
+                      编辑
+                    </Button>
+                  )}
+                  {canEditProject && (
+                    isDefault ? (
+                      <Tooltip title="默认项目不可删除">
+                        <Button size="small" danger disabled>
+                          删除
+                        </Button>
+                      </Tooltip>
+                    ) : (
+                      <Popconfirm title="确认删除该项目？需先移除项目下所有服务。" onConfirm={() => handleDelete(record.id)}>
+                        <Button size="small" danger>
+                          删除
+                        </Button>
+                      </Popconfirm>
+                    )
                   )}
                 </Space>
               )

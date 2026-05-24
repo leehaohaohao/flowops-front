@@ -41,10 +41,10 @@ export default function MemberList() {
 
   if (!userInfo) return null
 
-  const canManage = userInfo.superAdmin || isSupervisor(userInfo, pid)
+  const canManage = userInfo.superAdmin || isSupervisor(userInfo, pid) || (userInfo.projectPermissions?.[String(pid)]?.includes('MANAGE_MEMBERS') ?? false)
 
   useEffect(() => {
-    if (!userInfo.superAdmin && !isSupervisor(userInfo, pid)) {
+    if (!canManage) {
       navigate('/dashboard', { replace: true })
     }
   }, [userInfo.superAdmin, pid])
