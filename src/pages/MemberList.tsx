@@ -2,26 +2,31 @@ import { useContext, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Button,
+  Checkbox,
+  Col,
   Form,
+  Input,
   message,
   Modal,
   Popconfirm,
+  Row,
   Select,
   Space,
   Table,
   Typography,
 } from 'antd'
 import type { TableProps } from 'antd'
-import { addMember, getProjectMembers, removeMember, updateMemberRole } from '@/api/members'
-import { getProjectRoles } from '@/api/roles'
+import { createUser, getAssignable, type AssignableData } from '@/api/users'
+import { getProjectMembers, removeMember, updateMemberRole } from '@/api/members'
 import { getProject } from '@/api/projects'
-import { getUserList } from '@/api/users'
 import { UserContext } from '@/App'
 import { formatTime } from '@/utils/format'
-import { isSupervisor } from '@/utils/permission'
-import type { GroupMember, Role, SysUser } from '@/types'
+import { isSupervisor, PERM_LABEL } from '@/utils/permission'
+import type { GroupMember } from '@/types'
 
 const { Title } = Typography
+
+const ALL_PERMISSIONS = Object.entries(PERM_LABEL).map(([value, label]) => ({ value, label }))
 
 export default function MemberList() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -30,13 +35,13 @@ export default function MemberList() {
   const pid = Number(projectId)
 
   const [members, setMembers] = useState<GroupMember[]>([])
-  const [roles, setRoles] = useState<Role[]>([])
-  const [users, setUsers] = useState<SysUser[]>([])
   const [projectName, setProjectName] = useState('')
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<GroupMember | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [assignable, setAssignable] = useState<AssignableData | null>(null)
+  const [rolePerms, setRolePerms] = useState<string[]>([])
   const [form] = Form.useForm()
 
   if (!userInfo) return null
@@ -60,24 +65,41 @@ export default function MemberList() {
   useEffect(() => {
     if (!pid) return
     getProject(pid).then((res) => setProjectName(res.data.name)).catch(() => {})
-    getProjectRoles(pid).then((res) => setRoles(res.data)).catch(() => {})
     fetchMembers()
   }, [pid])
 
-  const openAdd = async () => {
+  const openCreate = async () => {
     setEditing(null)
     form.resetFields()
+    setRolePerms([])
     try {
-      const res = await getUserList()
-      setUsers(res.data)
+      const res = await getAssignable(pid)
+      setAssignable(res.data)
     } catch { /* ignore */ }
     setModalOpen(true)
   }
 
-  const openEditRole = (record: GroupMember) => {
+  const openEditRole = async (record: GroupMember) => {
     setEditing(record)
-    form.setFieldsValue({ roleId: record.roleId })
+    setRolePerms([])
+    try {
+      const res = await getAssignable(pid)
+      setAssignable(res.data)
+      const roleId = res.data.roles.find((r) => r.name === record.roleName)?.id
+      form.setFieldsValue({ roleId })
+      if (roleId) {
+        const role = res.data.roles.find((r) => r.id === roleId)
+        if (role) setRolePerms(role.permissions)
+      }
+    } catch { /* ignore */ }
     setModalOpen(true)
+  }
+
+  const handleRoleChange = (roleId: number) => {
+    const role = assignable?.roles.find((r) => r.id === roleId)
+    const perms = role?.permissions || []
+    setRolePerms(perms)
+    form.setFieldsValue({ extraPermissions: perms })
   }
 
   const handleSubmit = async () => {
@@ -88,8 +110,18 @@ export default function MemberList() {
         await updateMemberRole(pid, editing.userId, { roleId: values.roleId })
         message.success('角色更新成功')
       } else {
-        await addMember(pid, { userId: values.userId, roleId: values.roleId })
-        message.success('成员添加成功')
+        await createUser({
+          username: values.username,
+          password: values.password,
+          projects: [{
+            projectId: pid,
+            roleId: values.roleId,
+            extraPermissions: (values.extraPermissions || []).filter(
+              (p: string) => !rolePerms.includes(p),
+            ),
+          }],
+        })
+        message.success('创建成功')
       }
       setModalOpen(false)
       form.resetFields()
@@ -143,6 +175,11 @@ export default function MemberList() {
       : []),
   ]
 
+  // 过滤可分配角色：非超管不能分配 supervisor
+  const availableRoles = assignable?.roles.filter(
+    (r) => userInfo.superAdmin || r.name !== 'supervisor',
+  ) || []
+
   return (
     <div>
       <div
@@ -160,37 +197,54 @@ export default function MemberList() {
           </Title>
         </Space>
         {canManage && (
-          <Button type="primary" onClick={openAdd}>
-            添加成员
+          <Button type="primary" onClick={openCreate}>
+            创建用户
           </Button>
         )}
       </div>
       <Table columns={columns} dataSource={members} rowKey="userId" loading={loading} pagination={false} />
 
       <Modal
-        title={editing ? '修改角色' : '添加成员'}
+        title={editing ? '修改角色' : '创建用户'}
         open={modalOpen}
         onOk={handleSubmit}
         onCancel={() => setModalOpen(false)}
         confirmLoading={submitting}
+        width={520}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           {!editing && (
-            <Form.Item name="userId" label="用户" rules={[{ required: true, message: '请选择用户' }]}>
-              <Select
-                placeholder="选择用户"
-                showSearch
-                optionFilterProp="label"
-                options={users.map((u) => ({ value: u.id, label: u.username }))}
-              />
-            </Form.Item>
+            <>
+              <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
+                <Input.Password />
+              </Form.Item>
+            </>
           )}
           <Form.Item name="roleId" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
             <Select
               placeholder="选择角色"
-              options={roles.map((r) => ({ value: r.id, label: `${r.name}${r.isPreset ? ' (预设)' : ''}` }))}
+              options={availableRoles.map((r) => ({ value: r.id, label: `${r.name}${r.description ? ` — ${r.description}` : ''}` }))}
+              onChange={handleRoleChange}
             />
           </Form.Item>
+          {!editing && (
+            <Form.Item name="extraPermissions" label="补充权限" help="角色已包含的权限自动勾选">
+              <Checkbox.Group>
+                <Row gutter={[8, 8]}>
+                  {ALL_PERMISSIONS.map((p) => (
+                    <Col span={8} key={p.value}>
+                      <Checkbox value={p.value} disabled={rolePerms.includes(p.value)}>
+                        {p.label}
+                      </Checkbox>
+                    </Col>
+                  ))}
+                </Row>
+              </Checkbox.Group>
+            </Form.Item>
+          )}
         </Form>
       </Modal>
     </div>

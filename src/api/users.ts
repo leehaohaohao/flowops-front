@@ -19,6 +19,15 @@ export function updateUser(id: number, data: {
   return request.put(`/api/users/${id}`, data)
 }
 
+export interface AssignableData {
+  roles: Array<{ id: number; name: string; description: string; permissions: string[] }>
+  permissions: string[]
+}
+
+export function getAssignable(projectId?: number): Promise<ApiResponse<AssignableData>> {
+  return request.get('/api/users/assignable', { params: projectId ? { projectId } : undefined })
+}
+
 export function deleteUser(id: number): Promise<ApiResponse<null>> {
   return request.delete(`/api/users/${id}`)
 }
