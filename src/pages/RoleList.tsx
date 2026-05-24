@@ -56,7 +56,7 @@ export default function RoleList() {
         })
       : Promise.all(
           (userInfo.projects || [])
-            .filter((p) => p.isSupervisor)
+            .filter((p) => p.roleName === 'supervisor')
             .map((p) => getProjectRoles(p.id).then((r) => r.data))
         )
 
@@ -110,7 +110,7 @@ export default function RoleList() {
       } else {
         const projectId = userInfo.isSuperAdmin
           ? values.projectId
-          : userInfo.projects?.find((p) => p.isSupervisor)?.id
+          : userInfo.projects?.find((p) => p.roleName === 'supervisor')?.id
         if (!projectId) {
           message.error('请选择项目')
           return

@@ -13,7 +13,6 @@ export interface UserProject {
   id: number
   name: string
   roleName: string
-  isSupervisor: boolean
 }
 
 export interface UserInfo {

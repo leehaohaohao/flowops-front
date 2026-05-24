@@ -30,7 +30,7 @@ function buildMenuItems(userInfo: UserInfo) {
     )
   }
 
-  if (userInfo.isSuperAdmin || userInfo.projects?.some((p) => p.isSupervisor)) {
+  if (userInfo.isSuperAdmin || userInfo.projects?.some((p) => p.roleName === 'supervisor')) {
     items.push({ key: '/roles', icon: <SafetyOutlined />, label: '角色管理' })
   }
 
@@ -111,7 +111,7 @@ export default function MainLayout({
           <span>{userInfo.username}</span>
           {userInfo.isSuperAdmin && <Tag color="red">超级管理员</Tag>}
           {userInfo.projects
-            ?.filter((p) => p.isSupervisor)
+            ?.filter((p) => p.roleName === 'supervisor')
             .map((p) => (
               <Tag key={p.id} color="blue">
                 {p.name}主管
