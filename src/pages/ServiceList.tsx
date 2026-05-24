@@ -119,7 +119,7 @@ export default function ServiceList() {
               </Button>
             )}
             {canView && (
-              <Button size="small" onClick={() => navigate(`/services/${record.id}/logs`)}>
+              <Button size="small" onClick={() => navigate(`/projects/${projectId}/services/${record.id}/logs`)}>
                 日志
               </Button>
             )}

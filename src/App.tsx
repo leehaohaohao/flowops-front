@@ -76,7 +76,7 @@ const router = createHashRouter([
       { path: 'projects/:projectId/services/create', element: <ServiceEdit /> },
       { path: 'projects/:projectId/members', element: <MemberList /> },
       { path: 'services/:id', element: <ServiceEdit /> },
-      { path: 'services/:id/logs', element: <ContainerLogs /> },
+      { path: 'projects/:projectId/services/:id/logs', element: <ContainerLogs /> },
       { path: 'logs', element: <DeployLogs /> },
       { path: 'users', element: <UserList /> },
       { path: 'roles', element: <RoleList /> },

@@ -14,7 +14,7 @@ const tailOptions = [
 ]
 
 export default function ContainerLogs() {
-  const { id } = useParams<{ id: string }>()
+  const { projectId, id } = useParams<{ projectId: string; id: string }>()
   const navigate = useNavigate()
   const serviceId = Number(id)
 
@@ -124,7 +124,7 @@ export default function ContainerLogs() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>运行日志</Title>
-        <Button onClick={() => navigate('/services')}>返回服务列表</Button>
+        <Button onClick={() => navigate(`/projects/${projectId}/services`)}>返回服务列表</Button>
       </div>
 
       <Space style={{ marginBottom: 16 }}>
