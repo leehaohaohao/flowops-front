@@ -12,6 +12,7 @@ import {
   Row,
   Select,
   Table,
+  Tag,
   Typography,
 } from 'antd'
 import type { TableProps } from 'antd'
@@ -136,9 +137,12 @@ export default function UserList() {
     { title: '用户名', dataIndex: 'username' },
     {
       title: '角色',
-      dataIndex: 'roleName',
+      dataIndex: 'role',
       width: 120,
-      render: (val: string) => val || '-',
+      render: (_: unknown, record: SysUser) => {
+        if (record.isSuperAdmin) return <Tag color="red">超级管理员</Tag>
+        return record.roleName || record.role || '-'
+      },
     },
     { title: '创建时间', dataIndex: 'createTime', width: 180, render: (val: string) => formatTime(val) },
     ...(userInfo.isSuperAdmin

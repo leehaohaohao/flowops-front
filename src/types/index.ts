@@ -33,6 +33,7 @@ export interface SysUser {
   id: number
   username: string
   role: string
+  isSuperAdmin?: boolean | number
   groupId?: number
   roleName?: string
   createTime: string
