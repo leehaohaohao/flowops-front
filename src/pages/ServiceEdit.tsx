@@ -27,6 +27,11 @@ import {
 const { Title, Text } = Typography
 const { TextArea } = Input
 
+interface ExtraPort {
+  hostPort: number
+  containerPort: number
+}
+
 interface ProxyDirective {
   name: string
   value: string
@@ -94,7 +99,7 @@ function generateNginxConf(proxyRules: ProxyRule[]): string {
 }`
 }
 
-function generatePreview(config: ServiceConfig, type: string, port: number) {
+function generatePreview(config: ServiceConfig, type: string, port: number, extraPorts: ExtraPort[] = []) {
   let dockerfile = ''
   let nginx = ''
   let compose = 'services:\n'
@@ -115,19 +120,30 @@ function generatePreview(config: ServiceConfig, type: string, port: number) {
 
   if (type === 'backend' && config.backend) {
     compose += `  backend:\n    build: .\n    ports:\n      - "${port}:${config.backend.containerPort}"\n`
+    for (const ep of extraPorts) {
+      compose += `      - "${ep.hostPort}:${ep.containerPort}"\n`
+    }
     if (config.backend.dataMount) {
       compose += `    volumes:\n      - ${config.backend.dataMount.hostDir}:${config.backend.dataMount.containerPath}\n`
     }
     compose += `    restart: unless-stopped\n`
   } else if (type === 'frontend' && config.frontend) {
-    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${port}:80"\n    volumes:\n      - ./dist:/usr/share/nginx/html\n      - ./default.conf:/etc/nginx/conf.d/default.conf\n    restart: unless-stopped\n`
+    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${port}:80"\n`
+    for (const ep of extraPorts) {
+      compose += `      - "${ep.hostPort}:${ep.containerPort}"\n`
+    }
+    compose += `    volumes:\n      - ./dist:/usr/share/nginx/html\n      - ./default.conf:/etc/nginx/conf.d/default.conf\n    restart: unless-stopped\n`
   } else if (type === 'fullstack' && config.backend && config.frontend) {
     compose += `  backend:\n    build: .\n    expose:\n      - "${config.backend.containerPort}"\n`
     if (config.backend.dataMount) {
       compose += `    volumes:\n      - ${config.backend.dataMount.hostDir}:${config.backend.dataMount.containerPath}\n`
     }
     compose += `    restart: unless-stopped\n`
-    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${port}:80"\n    volumes:\n      - ./dist:/usr/share/nginx/html\n      - ./default.conf:/etc/nginx/conf.d/default.conf\n    depends_on:\n      - backend\n    restart: unless-stopped\n`
+    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${port}:80"\n`
+    for (const ep of extraPorts) {
+      compose += `      - "${ep.hostPort}:${ep.containerPort}"\n`
+    }
+    compose += `    volumes:\n      - ./dist:/usr/share/nginx/html\n      - ./default.conf:/etc/nginx/conf.d/default.conf\n    depends_on:\n      - backend\n    restart: unless-stopped\n`
   }
 
   return { dockerfile, nginx, compose }
@@ -180,6 +196,7 @@ export default function ServiceEdit() {
           frontendBackendUrl: config.frontend?.backendUrl || '',
           proxyRules: config.frontend?.proxyRules || [],
           customNginxConfig: config.frontend?.customNginxConfig || '',
+          extraPorts: svc.extraPorts ? JSON.parse(svc.extraPorts) : [],
         })
         setUseCustomNginx(!!config.frontend?.customNginxConfig)
       })
@@ -229,6 +246,7 @@ export default function ServiceEdit() {
       const data = {
         name: values.name,
         port: values.port,
+        extraPorts: JSON.stringify((values.extraPorts || []).filter((p: ExtraPort) => p.hostPort && p.containerPort)),
         serviceType: values.serviceType,
         serviceConfig: JSON.stringify(config),
         ...(projectId ? { projectId: Number(projectId) } : {}),
@@ -257,7 +275,8 @@ export default function ServiceEdit() {
     const values = form.getFieldsValue()
     const config = collectConfig()
     const port = values.port || 8080
-    setPreview(generatePreview(config, serviceType, port))
+    const extraPorts: ExtraPort[] = (values.extraPorts || []).filter((p: ExtraPort) => p.hostPort && p.containerPort)
+    setPreview(generatePreview(config, serviceType, port, extraPorts))
     setPreviewVisible(true)
   }
 
@@ -308,6 +327,31 @@ export default function ServiceEdit() {
             <InputNumber style={{ width: '100%' }} />
           </Form.Item>
         </Space>
+
+        {/* Extra ports */}
+        <Form.Item label="额外端口映射" extra="格式：宿主机端口:容器端口，如 9090:9090">
+          <Form.List name="extraPorts">
+            {(fields, { add, remove }) => (
+              <div>
+                {fields.map((field) => (
+                  <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
+                    <Form.Item name={[field.name, 'hostPort']} noStyle>
+                      <InputNumber placeholder="宿主机端口" style={{ width: 140 }} />
+                    </Form.Item>
+                    <span>:</span>
+                    <Form.Item name={[field.name, 'containerPort']} noStyle>
+                      <InputNumber placeholder="容器端口" style={{ width: 140 }} />
+                    </Form.Item>
+                    <MinusCircleOutlined onClick={() => remove(field.name)} />
+                  </Space>
+                ))}
+                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />} size="small">
+                  添加端口映射
+                </Button>
+              </div>
+            )}
+          </Form.List>
+        </Form.Item>
 
         {/* Backend config */}
         {showBackend && (

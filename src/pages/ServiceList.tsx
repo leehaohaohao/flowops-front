@@ -93,6 +93,18 @@ export default function ServiceList() {
     },
     { title: '端口', dataIndex: 'port', width: 80 },
     {
+      title: '额外端口',
+      dataIndex: 'extraPorts',
+      width: 180,
+      render: (val: string) => {
+        if (!val) return '-'
+        try {
+          const ports = JSON.parse(val) as Array<{ hostPort: number; containerPort: number }>
+          return ports.map((p, i) => <Tag key={i}>{p.hostPort}:{p.containerPort}</Tag>)
+        } catch { return '-' }
+      },
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       width: 80,

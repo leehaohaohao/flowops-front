@@ -86,6 +86,7 @@ export interface DeployService {
   volumeDir: string
   serviceType: 'backend' | 'frontend' | 'fullstack'
   serviceConfig: string
+  extraPorts?: string
   status: 'running' | 'stopped'
   createTime: string
   updateTime: string
