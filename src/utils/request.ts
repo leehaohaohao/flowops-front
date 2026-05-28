@@ -5,7 +5,7 @@ import { env } from '@/config/env'
 
 const request = axios.create({
   baseURL: env.apiBaseUrl,
-  timeout: 15000,
+  timeout: 100000,
   headers: { 'Content-Type': 'application/json' },
 })
 

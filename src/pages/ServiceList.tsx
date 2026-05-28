@@ -85,23 +85,32 @@ export default function ServiceList() {
   const columns: TableProps<DeployService>['columns'] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '服务名', dataIndex: 'name' },
+    { title: '部署名称', dataIndex: 'deployName', width: 150 },
+    { title: '备注', dataIndex: 'remark', ellipsis: true },
     {
       title: '类型',
       dataIndex: 'serviceType',
       width: 120,
       render: (val: string) => serviceTypeMap[val] || val,
     },
-    { title: '端口', dataIndex: 'port', width: 80 },
     {
-      title: '额外端口',
-      dataIndex: 'extraPorts',
-      width: 180,
-      render: (val: string) => {
-        if (!val) return '-'
+      title: '端口映射',
+      dataIndex: 'portMappings',
+      width: 280,
+      render: (val: string, record) => {
+        if (!val) {
+          return record.port ? <Tag color="blue">{record.port}</Tag> : '-'
+        }
         try {
-          const ports = JSON.parse(val) as Array<{ hostPort: number; containerPort: number }>
-          return ports.map((p, i) => <Tag key={i}>{p.hostPort}:{p.containerPort}</Tag>)
-        } catch { return '-' }
+          const mappings = JSON.parse(val) as Array<{ hostPort?: number; containerPort: number; primary?: boolean; expose?: boolean; label?: string }>
+          return mappings.map((m, i) => {
+            if (m.primary) return <Tag key={i} color="blue">{m.hostPort || m.containerPort}</Tag>
+            if (m.expose) return <Tag key={i} color="orange">{m.containerPort} 内部</Tag>
+            return <Tag key={i}>{m.hostPort}:{m.containerPort}</Tag>
+          })
+        } catch {
+          return record.port ? <Tag color="blue">{record.port}</Tag> : '-'
+        }
       },
     },
     {

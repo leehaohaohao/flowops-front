@@ -12,6 +12,7 @@ import {
   Modal,
   Select,
   Space,
+  Switch,
   Typography,
   Upload,
 } from 'antd'
@@ -27,11 +28,6 @@ import {
 const { Title, Text } = Typography
 const { TextArea } = Input
 
-interface ExtraPort {
-  hostPort: number
-  containerPort: number
-}
-
 interface ProxyDirective {
   name: string
   value: string
@@ -45,7 +41,6 @@ interface ProxyRule {
 interface ServiceConfig {
   backend?: {
     baseImage: string
-    containerPort: number
     startupCommand: string
     envVars: Record<string, string>
     dataMount?: { containerPath: string; hostDir: string }
@@ -55,8 +50,6 @@ interface ServiceConfig {
     backendUrl: string
     proxyRules: ProxyRule[]
     customNginxConfig: string | null
-    containerPort: number
-    frontendPort?: number
     nginxListenPort: number
   }
 }
@@ -102,14 +95,23 @@ function generateNginxConf(proxyRules: ProxyRule[], nginxListenPort: number = 80
 }`
 }
 
-function generatePreview(config: ServiceConfig, type: string, port: number, extraPorts: ExtraPort[] = []) {
+function generatePreview(
+  config: ServiceConfig,
+  type: string,
+  portMappings: Array<{ hostPort?: number; containerPort: number; primary?: boolean; expose?: boolean; label?: string; target?: string }> = [],
+) {
   let dockerfile = ''
   let nginx = ''
   let compose = 'services:\n'
 
+  const backendPorts = portMappings.filter((m) => type !== 'fullstack' || (m.target || 'backend') === 'backend')
+  const frontendPorts = portMappings.filter((m) => type !== 'fullstack' || m.target === 'frontend')
+
   if ((type === 'backend' || type === 'fullstack') && config.backend) {
     const b = config.backend
-    dockerfile = `FROM ${b.baseImage}\nWORKDIR /app\nCOPY app.jar /app/app.jar\nEXPOSE ${b.containerPort}`
+    const allPorts = type === 'fullstack' ? backendPorts : portMappings
+    const exposePorts = [...new Set(allPorts.map((m) => m.containerPort))].join(' ')
+    dockerfile = `FROM ${b.baseImage}\nWORKDIR /app\nCOPY app.jar /app/app.jar\nEXPOSE ${exposePorts}`
     for (const [k, v] of Object.entries(b.envVars || {})) {
       dockerfile += `\nENV ${k}=${v}`
     }
@@ -121,37 +123,42 @@ function generatePreview(config: ServiceConfig, type: string, port: number, extr
     nginx = generateNginxConf(config.frontend.proxyRules || [], config.frontend.nginxListenPort || 80)
   }
 
-  if (type === 'backend' && config.backend) {
-    compose += `  backend:\n    build: .\n    ports:\n      - "${port}:${config.backend.containerPort}"\n`
-    for (const ep of extraPorts) {
-      compose += `      - "${ep.hostPort}:${ep.containerPort}"\n`
+  const buildPortLines = (mappings: typeof portMappings) => {
+    const lines: string[] = []
+    const primary = mappings.find((m) => m.primary)
+    const exposeList = mappings.filter((m) => m.expose && m !== primary)
+    const hostList = mappings.filter((m) => !m.expose || m === primary)
+    if (exposeList.length > 0) {
+      lines.push(...exposeList.map((m) => `      - "${m.containerPort}"`))
     }
+    lines.push(...hostList.map((m) => m.hostPort ? `      - "${m.hostPort}:${m.containerPort}"` : `      - "${m.containerPort}"`))
+    return lines
+  }
+
+  if (type === 'backend' && config.backend) {
+    const lines = buildPortLines(portMappings)
+    compose += `  backend:\n    build: .\n`
+    compose += `    ports:\n${lines.join('\n')}\n`
     if (config.backend.dataMount) {
       compose += `    volumes:\n      - ${config.backend.dataMount.hostDir}:${config.backend.dataMount.containerPath}\n`
     }
     compose += `    restart: unless-stopped\n`
   } else if (type === 'frontend' && config.frontend) {
-    const nginxPort = config.frontend.containerPort || 80
-    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${port}:${nginxPort}"\n`
-    for (const ep of extraPorts) {
-      compose += `      - "${ep.hostPort}:${ep.containerPort}"\n`
-    }
+    const lines = buildPortLines(portMappings)
+    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n`
+    compose += `    ports:\n${lines.join('\n')}\n`
     compose += `    volumes:\n      - ./dist:/usr/share/nginx/html\n      - ./default.conf:/etc/nginx/conf.d/default.conf\n    restart: unless-stopped\n`
   } else if (type === 'fullstack' && config.backend && config.frontend) {
-    compose += `  backend:\n    build: .\n    expose:\n      - "${config.backend.containerPort}"\n`
-    if (extraPorts.length > 0) {
-      compose += `    ports:\n`
-      for (const ep of extraPorts) {
-        compose += `      - "${ep.hostPort}:${ep.containerPort}"\n`
-      }
-    }
+    const beLines = buildPortLines(backendPorts)
+    compose += `  backend:\n    build: .\n    ports:\n${beLines.join('\n')}\n`
     if (config.backend.dataMount) {
       compose += `    volumes:\n      - ${config.backend.dataMount.hostDir}:${config.backend.dataMount.containerPath}\n`
     }
     compose += `    restart: unless-stopped\n`
-    const frontendPort = config.frontend.frontendPort || port
-    const nginxContainerPort = config.frontend.containerPort || 80
-    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${frontendPort}:${nginxContainerPort}"\n`
+    const fePrimary = frontendPorts.find((m) => m.primary) || frontendPorts[0]
+    const nginxContainerPort = fePrimary?.containerPort || 80
+    const frontendHostPort = fePrimary?.hostPort || nginxContainerPort
+    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${frontendHostPort}:${nginxContainerPort}"\n`
     compose += `    volumes:\n      - ./dist:/usr/share/nginx/html\n      - ./default.conf:/etc/nginx/conf.d/default.conf\n    depends_on:\n      - backend\n    restart: unless-stopped\n`
   }
 
@@ -191,12 +198,31 @@ export default function ServiceEdit() {
           ? Object.entries(config.backend.envVars).map(([k, v]) => ({ key: k, value: v }))
           : []
 
+        let portMappings: Array<{ hostPort?: number; containerPort: number; primary?: boolean; expose?: boolean; label?: string; target?: string }> = []
+        try {
+          portMappings = svc.portMappings ? JSON.parse(svc.portMappings) : []
+        } catch { /* ignore */ }
+        if (portMappings.length === 0) {
+          if (svc.serviceType === 'frontend') {
+            portMappings = [{ containerPort: 80, label: 'Web端口', primary: true }]
+          } else if (svc.serviceType === 'fullstack') {
+            portMappings = [
+              { hostPort: svc.port || 80, containerPort: 80, label: 'Web端口', primary: true, target: 'frontend' },
+              { containerPort: 8080, expose: true, label: '内部API', target: 'backend' },
+            ]
+          } else {
+            portMappings = [{ hostPort: svc.port || 8080, containerPort: 8080, label: 'HTTP', primary: true }]
+          }
+        }
+        const primaryPort = portMappings.find((p) => p.primary) || portMappings[0]
+
         form.setFieldsValue({
           name: svc.name,
-          port: svc.port,
+          deployName: svc.deployName || '',
+          remark: svc.remark || '',
           serviceType: svc.serviceType,
+          port: primaryPort?.hostPort || svc.port,
           backendBaseImage: config.backend?.baseImage || 'openjdk:17-jdk-slim',
-          backendContainerPort: config.backend?.containerPort || 8090,
           backendStartupCommand: config.backend?.startupCommand || 'java -jar /app/app.jar',
           envVars,
           dataMountContainerPath: config.backend?.dataMount?.containerPath || '',
@@ -205,10 +231,8 @@ export default function ServiceEdit() {
           frontendBackendUrl: config.frontend?.backendUrl || '',
           proxyRules: config.frontend?.proxyRules || [],
           customNginxConfig: config.frontend?.customNginxConfig || '',
-          frontendContainerPort: config.frontend?.containerPort || 80,
-          frontendPort: config.frontend?.frontendPort || undefined,
           nginxListenPort: config.frontend?.nginxListenPort || 80,
-          extraPorts: svc.extraPorts ? JSON.parse(svc.extraPorts) : [],
+          portMappings,
         })
         setUseCustomNginx(!!config.frontend?.customNginxConfig)
       })
@@ -226,7 +250,6 @@ export default function ServiceEdit() {
       }
       config.backend = {
         baseImage: values.backendBaseImage || 'openjdk:17-jdk-slim',
-        containerPort: values.backendContainerPort || 8090,
         startupCommand: values.backendStartupCommand || 'java -jar /app/app.jar',
         envVars,
       }
@@ -244,11 +267,7 @@ export default function ServiceEdit() {
         backendUrl: values.frontendBackendUrl || '',
         proxyRules: values.proxyRules || [],
         customNginxConfig: useCustomNginx ? values.customNginxConfig || null : null,
-        containerPort: values.frontendContainerPort || 80,
         nginxListenPort: values.nginxListenPort || 80,
-      }
-      if (serviceType === 'fullstack' && values.frontendPort) {
-        config.frontend.frontendPort = values.frontendPort
       }
     }
 
@@ -260,10 +279,17 @@ export default function ServiceEdit() {
       const values = await form.validateFields()
       setSaving(true)
       const config = collectConfig()
+      const mappings = (values.portMappings || []).filter((m: { containerPort?: number }) => m.containerPort)
+      if (mappings.length > 0 && !mappings.some((m: { primary?: boolean }) => m.primary)) {
+        mappings[0].primary = true
+      }
+      const primaryMapping = mappings.find((m: { primary?: boolean }) => m.primary) || mappings[0]
       const data = {
         name: values.name,
-        port: values.port,
-        extraPorts: JSON.stringify((values.extraPorts || []).filter((p: ExtraPort) => p.hostPort && p.containerPort)),
+        deployName: values.deployName,
+        remark: values.remark || undefined,
+        port: primaryMapping?.hostPort || 0,
+        portMappings: JSON.stringify(mappings),
         serviceType: values.serviceType,
         serviceConfig: JSON.stringify(config),
         ...(projectId ? { projectId: Number(projectId) } : {}),
@@ -291,9 +317,8 @@ export default function ServiceEdit() {
   const handlePreview = () => {
     const values = form.getFieldsValue()
     const config = collectConfig()
-    const port = values.port || 8080
-    const extraPorts: ExtraPort[] = (values.extraPorts || []).filter((p: ExtraPort) => p.hostPort && p.containerPort)
-    setPreview(generatePreview(config, serviceType, port, extraPorts))
+    const mappings = (values.portMappings || []).filter((m: { containerPort?: number }) => m.containerPort)
+    setPreview(generatePreview(config, serviceType, mappings))
     setPreviewVisible(true)
   }
 
@@ -324,7 +349,7 @@ export default function ServiceEdit() {
     <div>
       <Title level={4}>{isEdit ? '编辑服务' : '创建服务'}</Title>
 
-      <Form form={form} layout="vertical" initialValues={{ serviceType: 'backend' }} style={{ marginTop: 24 }}>
+      <Form form={form} layout="vertical" initialValues={{ serviceType: 'backend', portMappings: [{ hostPort: 8080, containerPort: 8080, label: 'HTTP', primary: true }] }} style={{ marginTop: 24 }}>
         {/* Basic info */}
         <Space style={{ display: 'flex', gap: 16, marginBottom: 0 }} align="start">
           <Form.Item name="serviceType" label="服务类型" rules={[{ required: true }]} style={{ width: 200 }}>
@@ -340,29 +365,68 @@ export default function ServiceEdit() {
           <Form.Item name="name" label="服务名称" rules={[{ required: true }]} style={{ flex: 1, minWidth: 200 }}>
             <Input />
           </Form.Item>
-          <Form.Item name="port" label="暴露端口" rules={[{ required: true }]} style={{ width: 160 }}>
-            <InputNumber style={{ width: '100%' }} />
+          <Form.Item
+            name="deployName"
+            label="部署名称"
+            rules={[
+              { required: true, message: '请输入部署名称' },
+              { pattern: /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/, message: '只能包含小写字母、数字和连字符，且首尾为字母或数字' },
+              { max: 63 },
+            ]}
+            tooltip="用于 Docker Compose 项目命名和文件目录，只能包含小写字母、数字和连字符"
+            style={{ flex: 1, minWidth: 200 }}
+          >
+            <Input />
           </Form.Item>
         </Space>
+        <Form.Item name="remark" label="备注">
+          <TextArea rows={2} placeholder="可选，记录服务用途说明" />
+        </Form.Item>
 
-        {/* Extra ports */}
-        <Form.Item label="额外端口映射" extra="格式：宿主机端口:容器端口，如 9090:9090">
-          <Form.List name="extraPorts">
+        {/* Port mappings */}
+        <Form.Item label="端口映射">
+          <Form.List name="portMappings">
             {(fields, { add, remove }) => (
               <div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8, fontSize: 12, color: '#888' }}>
+                  <div style={{ width: 110 }}>宿主机端口</div>
+                  <div style={{ width: 110 }}>容器端口</div>
+                  <div style={{ width: 100 }}>标签</div>
+                  <div style={{ width: 70 }}>仅内部</div>
+                  {serviceType === 'fullstack' && <div style={{ width: 90 }}>目标</div>}
+                </div>
                 {fields.map((field) => (
                   <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
                     <Form.Item name={[field.name, 'hostPort']} noStyle>
-                      <InputNumber placeholder="宿主机端口" style={{ width: 140 }} />
+                      <InputNumber
+                        placeholder="宿主机端口"
+                        style={{ width: 110 }}
+                        disabled={form.getFieldValue(['portMappings', field.name, 'expose'])}
+                      />
                     </Form.Item>
-                    <span>:</span>
                     <Form.Item name={[field.name, 'containerPort']} noStyle>
-                      <InputNumber placeholder="容器端口" style={{ width: 140 }} />
+                      <InputNumber placeholder="容器端口" style={{ width: 110 }} />
                     </Form.Item>
+                    <Form.Item name={[field.name, 'label']} noStyle>
+                      <Input placeholder="标签" style={{ width: 100 }} />
+                    </Form.Item>
+                    <Form.Item name={[field.name, 'expose']} noStyle valuePropName="checked">
+                      <Switch
+                        size="small"
+                        onChange={(checked) => {
+                          if (checked) form.setFieldValue(['portMappings', field.name, 'hostPort'], undefined)
+                        }}
+                      />
+                    </Form.Item>
+                    {serviceType === 'fullstack' && (
+                      <Form.Item name={[field.name, 'target']} noStyle>
+                        <Select style={{ width: 90 }} options={[{ value: 'backend', label: '后端' }, { value: 'frontend', label: '前端' }]} />
+                      </Form.Item>
+                    )}
                     <MinusCircleOutlined onClick={() => remove(field.name)} />
                   </Space>
                 ))}
-                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />} size="small">
+                <Button type="dashed" onClick={() => add({ containerPort: 8080 })} icon={<PlusOutlined />} size="small">
                   添加端口映射
                 </Button>
               </div>
@@ -376,9 +440,6 @@ export default function ServiceEdit() {
             <Space style={{ display: 'flex', gap: 16 }} align="start" wrap>
               <Form.Item name="backendBaseImage" label="基础镜像" initialValue="openjdk:17-jdk-slim" style={{ width: 240 }}>
                 <Input />
-              </Form.Item>
-              <Form.Item name="backendContainerPort" label="容器端口" initialValue={8090} style={{ width: 140 }}>
-                <InputNumber style={{ width: '100%' }} />
               </Form.Item>
               <Form.Item name="backendStartupCommand" label="启动命令" initialValue="java -jar /app/app.jar" style={{ flex: 1, minWidth: 280 }}>
                 <Input />
@@ -444,14 +505,6 @@ export default function ServiceEdit() {
             </Space>
 
             <Space style={{ display: 'flex', gap: 16 }} align="start" wrap>
-              <Form.Item name="frontendContainerPort" label="Nginx 容器端口" initialValue={80} extra="nginx 容器内部监听端口" style={{ width: 180 }}>
-                <InputNumber style={{ width: '100%' }} />
-              </Form.Item>
-              {serviceType === 'fullstack' && (
-                <Form.Item name="frontendPort" label="前端暴露端口" extra="前端宿主机暴露端口，默认使用主暴露端口" style={{ width: 180 }}>
-                  <InputNumber style={{ width: '100%' }} />
-                </Form.Item>
-              )}
               <Form.Item name="nginxListenPort" label="Nginx 监听端口" initialValue={80} extra="nginx.conf 中的 listen 端口" style={{ width: 180 }}>
                 <InputNumber style={{ width: '100%' }} />
               </Form.Item>
@@ -513,9 +566,13 @@ export default function ServiceEdit() {
                   <Button
                     type="dashed"
                     onClick={() => {
+                      const portMappings = form.getFieldValue('portMappings') || []
+                      const backendPorts = portMappings.filter((m: { target?: string }) => serviceType !== 'fullstack' || (m.target || 'backend') === 'backend')
+                      const primaryBackend = backendPorts.find((m: { primary?: boolean }) => m.primary) || backendPorts[0]
+                      const containerPort = primaryBackend?.containerPort || 8080
                       const backendTarget =
                         serviceType === 'fullstack'
-                          ? `http://backend:${form.getFieldValue('backendContainerPort') || 8080}`
+                          ? `http://backend:${containerPort}`
                           : form.getFieldValue('frontendBackendUrl') || 'http://localhost:8080'
                       const path = '/api/'
                       addRule({ path, directives: defaultProxyDirectives(path, backendTarget) })

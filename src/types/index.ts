@@ -77,15 +77,28 @@ export interface AggregatedAccess {
   items: Array<{ id: number; permCode: string; createTime: string }>
 }
 
+export interface PortMapping {
+  hostPort?: number
+  containerPort: number
+  protocol?: string
+  label?: string
+  primary?: boolean
+  expose?: boolean
+  target?: string
+}
+
 export interface DeployService {
   id: number
   name: string
+  deployName: string
+  remark?: string
   projectId: number
   projectName: string
   port: number
   volumeDir: string
   serviceType: 'backend' | 'frontend' | 'fullstack'
   serviceConfig: string
+  portMappings?: string
   extraPorts?: string
   status: 'running' | 'stopped'
   createTime: string
