@@ -55,6 +55,9 @@ interface ServiceConfig {
     backendUrl: string
     proxyRules: ProxyRule[]
     customNginxConfig: string | null
+    containerPort: number
+    frontendPort?: number
+    nginxListenPort: number
   }
 }
 
@@ -66,7 +69,7 @@ const defaultProxyDirectives = (path: string, target: string): ProxyDirective[] 
   { name: 'proxy_set_header', value: 'X-Forwarded-Proto $scheme' },
 ]
 
-function generateNginxConf(proxyRules: ProxyRule[]): string {
+function generateNginxConf(proxyRules: ProxyRule[], nginxListenPort: number = 80): string {
   let proxyBlocks = ''
   for (const rule of proxyRules) {
     if (!rule.path) continue
@@ -81,7 +84,7 @@ function generateNginxConf(proxyRules: ProxyRule[]): string {
     proxyBlocks += `\n    }`
   }
   return `server {
-    listen 80;
+    listen ${nginxListenPort};
     server_name localhost;
     root /usr/share/nginx/html;
     index index.html;
@@ -115,7 +118,7 @@ function generatePreview(config: ServiceConfig, type: string, port: number, extr
   }
 
   if ((type === 'frontend' || type === 'fullstack') && config.frontend) {
-    nginx = generateNginxConf(config.frontend.proxyRules || [])
+    nginx = generateNginxConf(config.frontend.proxyRules || [], config.frontend.nginxListenPort || 80)
   }
 
   if (type === 'backend' && config.backend) {
@@ -128,21 +131,27 @@ function generatePreview(config: ServiceConfig, type: string, port: number, extr
     }
     compose += `    restart: unless-stopped\n`
   } else if (type === 'frontend' && config.frontend) {
-    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${port}:80"\n`
+    const nginxPort = config.frontend.containerPort || 80
+    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${port}:${nginxPort}"\n`
     for (const ep of extraPorts) {
       compose += `      - "${ep.hostPort}:${ep.containerPort}"\n`
     }
     compose += `    volumes:\n      - ./dist:/usr/share/nginx/html\n      - ./default.conf:/etc/nginx/conf.d/default.conf\n    restart: unless-stopped\n`
   } else if (type === 'fullstack' && config.backend && config.frontend) {
     compose += `  backend:\n    build: .\n    expose:\n      - "${config.backend.containerPort}"\n`
+    if (extraPorts.length > 0) {
+      compose += `    ports:\n`
+      for (const ep of extraPorts) {
+        compose += `      - "${ep.hostPort}:${ep.containerPort}"\n`
+      }
+    }
     if (config.backend.dataMount) {
       compose += `    volumes:\n      - ${config.backend.dataMount.hostDir}:${config.backend.dataMount.containerPath}\n`
     }
     compose += `    restart: unless-stopped\n`
-    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${port}:80"\n`
-    for (const ep of extraPorts) {
-      compose += `      - "${ep.hostPort}:${ep.containerPort}"\n`
-    }
+    const frontendPort = config.frontend.frontendPort || port
+    const nginxContainerPort = config.frontend.containerPort || 80
+    compose += `  frontend:\n    image: ${config.frontend.baseImage}\n    ports:\n      - "${frontendPort}:${nginxContainerPort}"\n`
     compose += `    volumes:\n      - ./dist:/usr/share/nginx/html\n      - ./default.conf:/etc/nginx/conf.d/default.conf\n    depends_on:\n      - backend\n    restart: unless-stopped\n`
   }
 
@@ -196,6 +205,9 @@ export default function ServiceEdit() {
           frontendBackendUrl: config.frontend?.backendUrl || '',
           proxyRules: config.frontend?.proxyRules || [],
           customNginxConfig: config.frontend?.customNginxConfig || '',
+          frontendContainerPort: config.frontend?.containerPort || 80,
+          frontendPort: config.frontend?.frontendPort || undefined,
+          nginxListenPort: config.frontend?.nginxListenPort || 80,
           extraPorts: svc.extraPorts ? JSON.parse(svc.extraPorts) : [],
         })
         setUseCustomNginx(!!config.frontend?.customNginxConfig)
@@ -232,6 +244,11 @@ export default function ServiceEdit() {
         backendUrl: values.frontendBackendUrl || '',
         proxyRules: values.proxyRules || [],
         customNginxConfig: useCustomNginx ? values.customNginxConfig || null : null,
+        containerPort: values.frontendContainerPort || 80,
+        nginxListenPort: values.nginxListenPort || 80,
+      }
+      if (serviceType === 'fullstack' && values.frontendPort) {
+        config.frontend.frontendPort = values.frontendPort
       }
     }
 
@@ -424,6 +441,20 @@ export default function ServiceEdit() {
                   <Input placeholder="http://121.40.154.188:8090" />
                 </Form.Item>
               )}
+            </Space>
+
+            <Space style={{ display: 'flex', gap: 16 }} align="start" wrap>
+              <Form.Item name="frontendContainerPort" label="Nginx 容器端口" initialValue={80} extra="nginx 容器内部监听端口" style={{ width: 180 }}>
+                <InputNumber style={{ width: '100%' }} />
+              </Form.Item>
+              {serviceType === 'fullstack' && (
+                <Form.Item name="frontendPort" label="前端暴露端口" extra="前端宿主机暴露端口，默认使用主暴露端口" style={{ width: 180 }}>
+                  <InputNumber style={{ width: '100%' }} />
+                </Form.Item>
+              )}
+              <Form.Item name="nginxListenPort" label="Nginx 监听端口" initialValue={80} extra="nginx.conf 中的 listen 端口" style={{ width: 180 }}>
+                <InputNumber style={{ width: '100%' }} />
+              </Form.Item>
             </Space>
 
             <Divider style={{ margin: '12px 0' }} />
