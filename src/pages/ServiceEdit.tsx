@@ -625,7 +625,7 @@ export default function ServiceEdit() {
                             </Form.Item>
                           </Col>
                           <Col span={8}>
-                            <Form.Item name="nginxListenPort" label="Nginx 监听端口">>
+                            <Form.Item name="nginxListenPort" label="Nginx 监听端口">
                               <InputNumber style={{ width: '100%' }} />
                             </Form.Item>
                           </Col>
