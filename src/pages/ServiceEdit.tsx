@@ -4,12 +4,12 @@ import {
   Button,
   Card,
   Collapse,
-  Divider,
+  Col,
   Form,
   Input,
   InputNumber,
   message,
-  Modal,
+  Row,
   Select,
   Space,
   Switch,
@@ -190,7 +190,6 @@ export default function ServiceEdit() {
   const [form] = Form.useForm()
   const [serviceType, setServiceType] = useState<string>('backend')
   const [saving, setSaving] = useState(false)
-  const [previewVisible, setPreviewVisible] = useState(false)
   const [preview, setPreview] = useState({ dockerfile: '', nginx: '', compose: '' })
   const [useCustomNginx, setUseCustomNginx] = useState(false)
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null)
@@ -349,7 +348,6 @@ export default function ServiceEdit() {
     const config = collectConfig()
     const mappings = (values.portMappings || []).filter((m: { containerPort?: number }) => m.containerPort)
     setPreview(generatePreview(config, serviceType, mappings))
-    setPreviewVisible(true)
   }
 
   const handleUploadJar = async (file: File) => {
@@ -385,399 +383,444 @@ export default function ServiceEdit() {
   const showBackend = serviceType === 'backend' || serviceType === 'fullstack'
   const showFrontend = serviceType === 'frontend' || serviceType === 'fullstack'
 
+  const codeBlockStyle: React.CSSProperties = { background: '#1e1e1e', color: '#d4d4d4', padding: 12, borderRadius: 4, marginTop: 4, fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 300, overflow: 'auto' }
+
   return (
     <div>
-      <Title level={4}>{isEdit ? '编辑服务' : '创建服务'}</Title>
-
-      <Form form={form} layout="vertical" initialValues={{ serviceType: 'backend', portMappings: [{ hostPort: 8080, containerPort: 8080, label: 'HTTP', primary: true }] }} style={{ marginTop: 24 }}>
-        {/* Basic info */}
-        <Space style={{ display: 'flex', gap: 16, marginBottom: 0 }} align="start">
-          <Form.Item name="serviceType" label="服务类型" rules={[{ required: true }]} style={{ width: 200 }}>
-            <Select
-              onChange={(val) => setServiceType(val)}
-              options={[
-                { value: 'backend', label: '纯后端' },
-                { value: 'frontend', label: '纯前端' },
-                { value: 'fullstack', label: '前后端一体' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="name" label="服务名称" rules={[{ required: true }]} style={{ flex: 1, minWidth: 200 }}>
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name="deployName"
-            label="部署名称"
-            rules={[
-              { required: true, message: '请输入部署名称' },
-              { pattern: /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/, message: '只能包含小写字母、数字和连字符，且首尾为字母或数字' },
-              { max: 63 },
-            ]}
-            tooltip="用于 Docker Compose 项目命名和文件目录，只能包含小写字母、数字和连字符"
-            style={{ flex: 1, minWidth: 200 }}
-          >
-            <Input />
-          </Form.Item>
-        </Space>
-        <Form.Item name="remark" label="备注">
-          <TextArea rows={2} placeholder="可选，记录服务用途说明" />
-        </Form.Item>
-
-        {/* Port mappings */}
-        <Form.Item label="端口映射">
-          <Form.List name="portMappings">
-            {(fields, { add, remove }) => (
-              <div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8, fontSize: 12, color: '#888' }}>
-                  <div style={{ width: 110 }}>宿主机端口</div>
-                  <div style={{ width: 110 }}>容器端口</div>
-                  <div style={{ width: 100 }}>标签</div>
-                  <div style={{ width: 70 }}>仅内部</div>
-                  {serviceType === 'fullstack' && <div style={{ width: 90 }}>目标</div>}
-                </div>
-                {fields.map((field) => (
-                  <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
-                    <Form.Item name={[field.name, 'hostPort']} noStyle>
-                      <InputNumber
-                        placeholder="宿主机端口"
-                        style={{ width: 110 }}
-                        disabled={form.getFieldValue(['portMappings', field.name, 'expose'])}
-                      />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'containerPort']} noStyle>
-                      <InputNumber placeholder="容器端口" style={{ width: 110 }} />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'label']} noStyle>
-                      <Input placeholder="标签" style={{ width: 100 }} />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'expose']} noStyle valuePropName="checked">
-                      <Switch
-                        size="small"
-                        onChange={(checked) => {
-                          if (checked) form.setFieldValue(['portMappings', field.name, 'hostPort'], undefined)
-                        }}
-                      />
-                    </Form.Item>
-                    {serviceType === 'fullstack' && (
-                      <Form.Item name={[field.name, 'target']} noStyle>
-                        <Select style={{ width: 90 }} options={[{ value: 'backend', label: '后端' }, { value: 'frontend', label: '前端' }]} />
-                      </Form.Item>
-                    )}
-                    <MinusCircleOutlined onClick={() => remove(field.name)} />
-                  </Space>
-                ))}
-                <Button type="dashed" onClick={() => add({ containerPort: 8080 })} icon={<PlusOutlined />} size="small">
-                  添加端口映射
-                </Button>
-              </div>
-            )}
-          </Form.List>
-        </Form.Item>
-
-        {/* Backend config */}
-        {showBackend && (
-          <Card title="后端配置" size="small" style={{ marginBottom: 16 }}>
-            <Space style={{ display: 'flex', gap: 16 }} align="start" wrap>
-              <Form.Item name="backendRuntime" label="运行时" initialValue="java" style={{ width: 160 }}>
-                <Select
-                  options={Object.entries(backendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
-                  onChange={(val: string) => {
-                    setBackendRuntime(val)
-                    const preset = backendRuntimes[val]
-                    if (preset) {
-                      form.setFieldsValue({
-                        backendBaseImage: preset.baseImage,
-                        backendStartupCommand: preset.startupCommand,
-                      })
-                    }
-                  }}
-                />
-              </Form.Item>
-              <Form.Item name="backendBaseImage" label="基础镜像" initialValue="openjdk:17-jdk-slim" style={{ width: 240 }}>
-                <Input />
-              </Form.Item>
-              <Form.Item name="backendStartupCommand" label="启动命令" initialValue="java -jar /app/app.jar" style={{ flex: 1, minWidth: 280 }}>
-                <Input />
-              </Form.Item>
-            </Space>
-
-            <Divider style={{ margin: '12px 0' }} />
-
-            <Text strong>环境变量</Text>
-            <Form.List name="envVars">
-              {(fields, { add, remove }) => (
-                <div style={{ marginTop: 8, marginBottom: 16 }}>
-                  {fields.map((field) => (
-                    <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
-                      <Form.Item name={[field.name, 'key']} noStyle>
-                        <Input placeholder="KEY" style={{ width: 200 }} />
-                      </Form.Item>
-                      <span>=</span>
-                      <Form.Item name={[field.name, 'value']} noStyle>
-                        <Input placeholder="VALUE" style={{ width: 200 }} />
-                      </Form.Item>
-                      <MinusCircleOutlined onClick={() => remove(field.name)} />
-                    </Space>
-                  ))}
-                  <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />} size="small">
-                    添加环境变量
-                  </Button>
-                </div>
-              )}
-            </Form.List>
-
-            <Divider style={{ margin: '12px 0' }} />
-
-            <Text strong>数据持久化</Text>
-            <Space style={{ display: 'flex', gap: 16, marginTop: 8 }} align="start" wrap>
-              <Form.Item name="dataMountContainerPath" extra="留空则不挂载" style={{ flex: 1, minWidth: 200 }}>
-                <Input placeholder="容器内数据目录，如 /app/data" />
-              </Form.Item>
-              <Form.Item name="dataMountHostDir" initialValue="./data" extra="相对于服务部署目录" style={{ flex: 1, minWidth: 200 }}>
-                <Input placeholder="宿主机目录（默认 ./data）" />
-              </Form.Item>
-            </Space>
-          </Card>
-        )}
-
-        {/* Frontend config */}
-        {showFrontend && (
-          <Card title="前端配置" size="small" style={{ marginBottom: 16 }}>
-            <Space style={{ display: 'flex', gap: 16 }} align="start" wrap>
-              <Form.Item name="frontendRuntime" label="运行时" initialValue="vue" style={{ width: 160 }}>
-                <Select
-                  options={Object.entries(frontendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
-                  onChange={(val: string) => setFrontendRuntime(val)}
-                />
-              </Form.Item>
-              <Form.Item name="frontendBaseImage" label="基础镜像" initialValue="nginx:alpine" style={{ width: 240 }}>
-                <Input />
-              </Form.Item>
-              {serviceType === 'frontend' && (
-                <Form.Item
-                  name="frontendBackendUrl"
-                  label="后端地址"
-                  extra="仅纯前端模式需要，一体模式自动使用 Docker 内部通信"
-                  style={{ flex: 1, minWidth: 280 }}
-                >
-                  <Input placeholder="http://121.40.154.188:8090" />
-                </Form.Item>
-              )}
-            </Space>
-
-            <Space style={{ display: 'flex', gap: 16 }} align="start" wrap>
-              <Form.Item name="nginxListenPort" label="Nginx 监听端口" initialValue={80} extra="nginx.conf 中的 listen 端口" style={{ width: 180 }}>
-                <InputNumber style={{ width: '100%' }} />
-              </Form.Item>
-            </Space>
-
-            <Divider style={{ margin: '12px 0' }} />
-
-            <Text strong>代理规则</Text>
-            <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}>
-              配置 Nginx 反向代理路径，如 /api/、/api/sse/ 等
-            </Text>
-            <Form.List name="proxyRules">
-              {(rules, { add: addRule, remove: removeRule }) => (
-                <div style={{ marginBottom: 16 }}>
-                  {rules.map((rule) => (
-                    <Card
-                      key={rule.key}
-                      size="small"
-                      style={{ marginBottom: 8 }}
-                      title={
-                        <Form.Item name={[rule.name, 'path']} noStyle>
-                          <Input
-                            placeholder="/api/"
-                            style={{ width: 200 }}
-                            onBlur={(e) => {
-                              let v = e.target.value.trim()
-                              if (!v) return
-                              if (!v.startsWith('/')) v = '/' + v
-                              if (!v.endsWith('/')) v = v + '/'
-                              form.setFieldValue(['proxyRules', rule.name, 'path'], v)
-                            }}
-                          />
-                        </Form.Item>
-                      }
-                      extra={<MinusCircleOutlined onClick={() => removeRule(rule.name)} />}
-                    >
-                      <Form.List name={[rule.name, 'directives']}>
-                        {(dirs, { add: addDir, remove: removeDir }) => (
-                          <>
-                            {dirs.map((dir) => (
-                              <Space key={dir.key} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
-                                <Form.Item name={[dir.name, 'name']} noStyle>
-                                  <Input placeholder="指令名" style={{ width: 200, fontFamily: 'monospace' }} />
-                                </Form.Item>
-                                <Form.Item name={[dir.name, 'value']} noStyle>
-                                  <Input placeholder="值" style={{ width: 320, fontFamily: 'monospace' }} />
-                                </Form.Item>
-                                <MinusCircleOutlined onClick={() => removeDir(dir.name)} />
-                              </Space>
-                            ))}
-                            <Button type="dashed" onClick={() => addDir()} icon={<PlusOutlined />} size="small">
-                              添加指令
-                            </Button>
-                          </>
-                        )}
-                      </Form.List>
-                    </Card>
-                  ))}
-                  <Button
-                    type="dashed"
-                    onClick={() => {
-                      const portMappings = form.getFieldValue('portMappings') || []
-                      const backendPorts = portMappings.filter((m: { target?: string }) => serviceType !== 'fullstack' || (m.target || 'backend') === 'backend')
-                      const primaryBackend = backendPorts.find((m: { primary?: boolean }) => m.primary) || backendPorts[0]
-                      const containerPort = primaryBackend?.containerPort || 8080
-                      const backendTarget =
-                        serviceType === 'fullstack'
-                          ? `http://backend:${containerPort}`
-                          : form.getFieldValue('frontendBackendUrl') || 'http://localhost:8080'
-                      const path = '/api/'
-                      addRule({ path, directives: defaultProxyDirectives(path, backendTarget) })
-                    }}
-                    icon={<PlusOutlined />}
-                    block
-                  >
-                    添加代理规则
-                  </Button>
-                </div>
-              )}
-            </Form.List>
-
-            <Divider style={{ margin: '12px 0' }} />
-
-            <Collapse
-              ghost
-              items={[
-                {
-                  key: 'nginx',
-                  label: '高级：自定义 Nginx 配置',
-                  children: (
-                    <div>
-                      <label style={{ display: 'block', marginBottom: 8 }}>
-                        <input
-                          type="checkbox"
-                          checked={useCustomNginx}
-                          onChange={(e) => setUseCustomNginx(e.target.checked)}
-                          style={{ marginRight: 8 }}
-                        />
-                        使用自定义配置
-                      </label>
-                      {useCustomNginx && (
-                        <Form.Item name="customNginxConfig" noStyle>
-                          <TextArea
-                            rows={10}
-                            style={{ fontFamily: 'monospace', fontSize: 13 }}
-                            placeholder="输入自定义 Nginx 配置..."
-                          />
-                        </Form.Item>
-                      )}
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </Card>
-        )}
-
-        {/* Actions */}
+      {/* Title bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <Title level={4} style={{ margin: 0 }}>{isEdit ? '编辑服务' : '创建服务'}</Title>
         <Space>
-          <Button type="primary" onClick={handleSave} loading={saving}>
-            保存
-          </Button>
+          <Button type="primary" onClick={handleSave} loading={saving}>保存</Button>
           <Button onClick={handlePreview}>预览配置</Button>
           <Button onClick={() => currentProjectId ? navigate(`/projects/${currentProjectId}/services`) : navigate('/projects')}>取消</Button>
         </Space>
-      </Form>
+      </div>
 
-      {/* Upload section (edit mode) */}
-      {isEdit && (
-        <>
-          <Divider />
-          <Title level={5}>上传产物</Title>
-          <Space size="large" wrap>
+      <Row gutter={24}>
+        {/* Left column - Form */}
+        <Col span={14}>
+          <Form form={form} layout="vertical" initialValues={{ serviceType: 'backend', portMappings: [{ hostPort: 8080, containerPort: 8080, label: 'HTTP', primary: true }] }}>
+            {/* Basic info - 3 column grid */}
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="serviceType" label="服务类型" rules={[{ required: true }]}>
+                  <Select
+                    onChange={(val) => setServiceType(val)}
+                    options={[
+                      { value: 'backend', label: '纯后端' },
+                      { value: 'frontend', label: '纯前端' },
+                      { value: 'fullstack', label: '前后端一体' },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="name" label="服务名称" rules={[{ required: true }]}>
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item
+                  name="deployName"
+                  label="部署名称"
+                  rules={[
+                    { required: true, message: '请输入部署名称' },
+                    { pattern: /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/, message: '只能包含小写字母、数字和连字符，且首尾为字母或数字' },
+                    { max: 63 },
+                  ]}
+                  tooltip="用于 Docker Compose 项目命名和文件目录"
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="remark" label="备注">
+              <TextArea rows={2} placeholder="可选，记录服务用途说明" />
+            </Form.Item>
+
+            {/* Port mappings */}
+            <Form.Item label="端口映射">
+              <Form.List name="portMappings">
+                {(fields, { add, remove }) => (
+                  <div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, fontSize: 12, color: '#888' }}>
+                      <div style={{ width: 110 }}>宿主机端口</div>
+                      <div style={{ width: 110 }}>容器端口</div>
+                      <div style={{ width: 100 }}>标签</div>
+                      <div style={{ width: 70 }}>仅内部</div>
+                      {serviceType === 'fullstack' && <div style={{ width: 90 }}>目标</div>}
+                    </div>
+                    {fields.map((field) => (
+                      <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
+                        <Form.Item name={[field.name, 'hostPort']} noStyle>
+                          <InputNumber
+                            placeholder="宿主机端口"
+                            style={{ width: 110 }}
+                            disabled={form.getFieldValue(['portMappings', field.name, 'expose'])}
+                          />
+                        </Form.Item>
+                        <Form.Item name={[field.name, 'containerPort']} noStyle>
+                          <InputNumber placeholder="容器端口" style={{ width: 110 }} />
+                        </Form.Item>
+                        <Form.Item name={[field.name, 'label']} noStyle>
+                          <Input placeholder="标签" style={{ width: 100 }} />
+                        </Form.Item>
+                        <Form.Item name={[field.name, 'expose']} noStyle valuePropName="checked">
+                          <Switch
+                            size="small"
+                            onChange={(checked) => {
+                              if (checked) form.setFieldValue(['portMappings', field.name, 'hostPort'], undefined)
+                            }}
+                          />
+                        </Form.Item>
+                        {serviceType === 'fullstack' && (
+                          <Form.Item name={[field.name, 'target']} noStyle>
+                            <Select style={{ width: 90 }} options={[{ value: 'backend', label: '后端' }, { value: 'frontend', label: '前端' }]} />
+                          </Form.Item>
+                        )}
+                        <MinusCircleOutlined onClick={() => remove(field.name)} />
+                      </Space>
+                    ))}
+                    <Button type="dashed" onClick={() => add({ containerPort: 8080 })} icon={<PlusOutlined />} size="small">
+                      添加端口映射
+                    </Button>
+                  </div>
+                )}
+              </Form.List>
+            </Form.Item>
+
+            {/* Backend config */}
             {showBackend && (
-              <div>
-                <Text strong>后端产物</Text>
-                <div style={{ marginTop: 8, width: 280 }}>
-                  {backendRuntime === 'go' ? (
-                    <Upload.Dragger
-                      beforeUpload={(file) => { handleUploadBinary(file); return false }}
-                      showUploadList={false}
-                      multiple={false}
-                    >
-                      <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-                      <p className="ant-upload-text">拖拽或点击上传二进制文件</p>
-                      <p className="ant-upload-hint">Go 编译产物</p>
-                    </Upload.Dragger>
-                  ) : (
-                    <Upload.Dragger
-                      beforeUpload={(file) => { handleUploadJar(file); return false }}
-                      showUploadList={false}
-                      accept=".jar"
-                      multiple={false}
-                    >
-                      <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-                      <p className="ant-upload-text">拖拽或点击上传 JAR 文件</p>
-                      <p className="ant-upload-hint">Java 打包产物</p>
-                    </Upload.Dragger>
-                  )}
-                </div>
-              </div>
-            )}
-            {showFrontend && (
-              <div>
-                <Text strong>前端产物</Text>
-                <div style={{ marginTop: 8, width: 280 }}>
-                  <Upload.Dragger
-                    beforeUpload={(file) => { handleUploadDist(file); return false }}
-                    showUploadList={false}
-                    accept=".zip"
-                    multiple={false}
-                  >
-                    <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-                    <p className="ant-upload-text">拖拽或点击上传前端 dist (zip)</p>
-                    <p className="ant-upload-hint">前端构建产物压缩包</p>
-                  </Upload.Dragger>
-                </div>
-              </div>
-            )}
-          </Space>
-        </>
-      )}
+              <Card title="后端配置" size="small" style={{ marginBottom: 16 }}>
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Form.Item name="backendRuntime" label="运行时" initialValue="java">
+                      <Select
+                        options={Object.entries(backendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
+                        onChange={(val: string) => {
+                          setBackendRuntime(val)
+                          const preset = backendRuntimes[val]
+                          if (preset) {
+                            form.setFieldsValue({
+                              backendBaseImage: preset.baseImage,
+                              backendStartupCommand: preset.startupCommand,
+                            })
+                          }
+                        }}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={16}>
+                    <Form.Item name="dataMountContainerPath" label="数据持久化（容器目录）" extra="留空则不挂载">
+                      <Input placeholder="/app/data" />
+                    </Form.Item>
+                  </Col>
+                </Row>
 
-      {/* Preview modal */}
-      <Modal
-        title="部署配置预览"
-        open={previewVisible}
-        onCancel={() => setPreviewVisible(false)}
-        footer={null}
-        width={800}
-      >
-        {preview.dockerfile && (
-          <div style={{ marginBottom: 16 }}>
-            <Text strong>Dockerfile</Text>
-            <pre style={{ background: '#1e1e1e', color: '#d4d4d4', padding: 12, borderRadius: 4, marginTop: 4 }}>
-              {preview.dockerfile}
-            </pre>
+                {/* Advanced collapse for backend */}
+                <Collapse
+                  ghost
+                  size="small"
+                  items={[
+                    {
+                      key: 'advanced',
+                      label: '高级选项',
+                      children: (
+                        <>
+                          <Row gutter={16}>
+                            <Col span={12}>
+                              <Form.Item name="backendBaseImage" label="基础镜像" initialValue="openjdk:17-jdk-slim">
+                                <Input />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item name="backendStartupCommand" label="启动命令" initialValue="java -jar /app/app.jar">
+                                <Input />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                          <Row gutter={16}>
+                            <Col span={12}>
+                              <Form.Item name="dataMountHostDir" label="宿主机目录" initialValue="./data" extra="相对于服务部署目录">
+                                <Input placeholder="./data" />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                        </>
+                      ),
+                    },
+                  ]}
+                />
+
+                {/* Env vars */}
+                <Text strong style={{ display: 'block', marginTop: 12, marginBottom: 8 }}>环境变量</Text>
+                <Form.List name="envVars">
+                  {(fields, { add, remove }) => (
+                    <div style={{ marginBottom: 8 }}>
+                      {fields.map((field) => (
+                        <Row key={field.key} gutter={8} style={{ marginBottom: 4 }} align="middle">
+                          <Col flex="1">
+                            <Form.Item name={[field.name, 'key']} noStyle>
+                              <Input placeholder="KEY" />
+                            </Form.Item>
+                          </Col>
+                          <Col flex="1">
+                            <Form.Item name={[field.name, 'value']} noStyle>
+                              <Input placeholder="VALUE" />
+                            </Form.Item>
+                          </Col>
+                          <Col flex="none">
+                            <MinusCircleOutlined onClick={() => remove(field.name)} />
+                          </Col>
+                        </Row>
+                      ))}
+                      <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />} size="small">
+                        添加环境变量
+                      </Button>
+                    </div>
+                  )}
+                </Form.List>
+              </Card>
+            )}
+
+            {/* Frontend config */}
+            {showFrontend && (
+              <Card title="前端配置" size="small" style={{ marginBottom: 16 }}>
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Form.Item name="frontendRuntime" label="运行时" initialValue="vue">
+                      <Select
+                        options={Object.entries(frontendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
+                        onChange={(val: string) => setFrontendRuntime(val)}
+                      />
+                    </Form.Item>
+                  </Col>
+                  {serviceType === 'frontend' && (
+                    <Col span={16}>
+                      <Form.Item
+                        name="frontendBackendUrl"
+                        label="后端地址"
+                        extra="仅纯前端模式需要，一体模式自动使用 Docker 内部通信"
+                      >
+                        <Input placeholder="http://121.40.154.188:8090" />
+                      </Form.Item>
+                    </Col>
+                  )}
+                </Row>
+
+                {/* Advanced collapse for frontend */}
+                <Collapse
+                  ghost
+                  size="small"
+                  items={[
+                    {
+                      key: 'advanced',
+                      label: '高级选项',
+                      children: (
+                        <Row gutter={16}>
+                          <Col span={8}>
+                            <Form.Item name="frontendBaseImage" label="基础镜像" initialValue="nginx:alpine">
+                              <Input />
+                            </Form.Item>
+                          </Col>
+                          <Col span={8}>
+                            <Form.Item name="nginxListenPort" label="Nginx 监听端口" initialValue={80}>
+                              <InputNumber style={{ width: '100%' }} />
+                            </Form.Item>
+                          </Col>
+                          <Col span={8}>
+                            <div style={{ paddingTop: 30 }}>
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={useCustomNginx}
+                                  onChange={(e) => setUseCustomNginx(e.target.checked)}
+                                  style={{ marginRight: 8 }}
+                                />
+                                自定义 Nginx 配置
+                              </label>
+                            </div>
+                          </Col>
+                        </Row>
+                      ),
+                    },
+                  ]}
+                />
+                {useCustomNginx && (
+                  <Form.Item name="customNginxConfig" style={{ marginTop: 8 }}>
+                    <TextArea
+                      rows={8}
+                      style={{ fontFamily: 'monospace', fontSize: 13 }}
+                      placeholder="输入自定义 Nginx 配置..."
+                    />
+                  </Form.Item>
+                )}
+
+                {/* Proxy rules */}
+                <Text strong style={{ display: 'block', marginTop: 12, marginBottom: 4 }}>代理规则</Text>
+                <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}>
+                  配置 Nginx 反向代理路径，如 /api/、/api/sse/ 等
+                </Text>
+                <Form.List name="proxyRules">
+                  {(rules, { add: addRule, remove: removeRule }) => (
+                    <div style={{ marginBottom: 8 }}>
+                      {rules.map((rule) => (
+                        <Card
+                          key={rule.key}
+                          size="small"
+                          style={{ marginBottom: 8 }}
+                          title={
+                            <Form.Item name={[rule.name, 'path']} noStyle>
+                              <Input
+                                placeholder="/api/"
+                                style={{ width: 200 }}
+                                onBlur={(e) => {
+                                  let v = e.target.value.trim()
+                                  if (!v) return
+                                  if (!v.startsWith('/')) v = '/' + v
+                                  if (!v.endsWith('/')) v = v + '/'
+                                  form.setFieldValue(['proxyRules', rule.name, 'path'], v)
+                                }}
+                              />
+                            </Form.Item>
+                          }
+                          extra={<MinusCircleOutlined onClick={() => removeRule(rule.name)} />}
+                        >
+                          <Form.List name={[rule.name, 'directives']}>
+                            {(dirs, { add: addDir, remove: removeDir }) => (
+                              <>
+                                {dirs.map((dir) => (
+                                  <Space key={dir.key} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
+                                    <Form.Item name={[dir.name, 'name']} noStyle>
+                                      <Input placeholder="指令名" style={{ width: 200, fontFamily: 'monospace' }} />
+                                    </Form.Item>
+                                    <Form.Item name={[dir.name, 'value']} noStyle>
+                                      <Input placeholder="值" style={{ width: 320, fontFamily: 'monospace' }} />
+                                    </Form.Item>
+                                    <MinusCircleOutlined onClick={() => removeDir(dir.name)} />
+                                  </Space>
+                                ))}
+                                <Button type="dashed" onClick={() => addDir()} icon={<PlusOutlined />} size="small">
+                                  添加指令
+                                </Button>
+                              </>
+                            )}
+                          </Form.List>
+                        </Card>
+                      ))}
+                      <Button
+                        type="dashed"
+                        onClick={() => {
+                          const portMappings = form.getFieldValue('portMappings') || []
+                          const backendPorts = portMappings.filter((m: { target?: string }) => serviceType !== 'fullstack' || (m.target || 'backend') === 'backend')
+                          const primaryBackend = backendPorts.find((m: { primary?: boolean }) => m.primary) || backendPorts[0]
+                          const containerPort = primaryBackend?.containerPort || 8080
+                          const backendTarget =
+                            serviceType === 'fullstack'
+                              ? `http://backend:${containerPort}`
+                              : form.getFieldValue('frontendBackendUrl') || 'http://localhost:8080'
+                          const path = '/api/'
+                          addRule({ path, directives: defaultProxyDirectives(path, backendTarget) })
+                        }}
+                        icon={<PlusOutlined />}
+                        block
+                      >
+                        添加代理规则
+                      </Button>
+                    </div>
+                  )}
+                </Form.List>
+              </Card>
+            )}
+          </Form>
+        </Col>
+
+        {/* Right column - Sidebar */}
+        <Col span={10}>
+          <div style={{ position: 'sticky', top: 16 }}>
+            {/* Upload section (edit mode) */}
+            {isEdit && (
+              <Card title="上传产物" size="small" style={{ marginBottom: 16 }}>
+                {showBackend && (
+                  <div style={{ marginBottom: 16 }}>
+                    <Text strong>后端产物</Text>
+                    <div style={{ marginTop: 8 }}>
+                      {backendRuntime === 'go' ? (
+                        <Upload.Dragger
+                          beforeUpload={(file) => { handleUploadBinary(file); return false }}
+                          showUploadList={false}
+                          multiple={false}
+                        >
+                          <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                          <p className="ant-upload-text">拖拽或点击上传二进制文件</p>
+                          <p className="ant-upload-hint">Go 编译产物</p>
+                        </Upload.Dragger>
+                      ) : (
+                        <Upload.Dragger
+                          beforeUpload={(file) => { handleUploadJar(file); return false }}
+                          showUploadList={false}
+                          accept=".jar"
+                          multiple={false}
+                        >
+                          <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                          <p className="ant-upload-text">拖拽或点击上传 JAR 文件</p>
+                          <p className="ant-upload-hint">Java 打包产物</p>
+                        </Upload.Dragger>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {showFrontend && (
+                  <div>
+                    <Text strong>前端产物</Text>
+                    <div style={{ marginTop: 8 }}>
+                      <Upload.Dragger
+                        beforeUpload={(file) => { handleUploadDist(file); return false }}
+                        showUploadList={false}
+                        accept=".zip"
+                        multiple={false}
+                      >
+                        <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                        <p className="ant-upload-text">拖拽或点击上传前端 dist (zip)</p>
+                        <p className="ant-upload-hint">前端构建产物压缩包</p>
+                      </Upload.Dragger>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {/* Preview section */}
+            <Card
+              title="配置预览"
+              size="small"
+              extra={<Button size="small" onClick={handlePreview}>刷新</Button>}
+            >
+              {preview.dockerfile ? (
+                <div style={{ marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: 12 }}>Dockerfile</Text>
+                  <pre style={codeBlockStyle}>{preview.dockerfile}</pre>
+                </div>
+              ) : null}
+              {preview.nginx ? (
+                <div style={{ marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: 12 }}>default.conf</Text>
+                  <pre style={codeBlockStyle}>{preview.nginx}</pre>
+                </div>
+              ) : null}
+              {preview.compose ? (
+                <div>
+                  <Text strong style={{ fontSize: 12 }}>docker-compose.yml</Text>
+                  <pre style={codeBlockStyle}>{preview.compose}</pre>
+                </div>
+              ) : (
+                <Text type="secondary">点击「预览配置」或「刷新」查看生成的配置</Text>
+              )}
+            </Card>
           </div>
-        )}
-        {preview.nginx && (
-          <div style={{ marginBottom: 16 }}>
-            <Text strong>default.conf</Text>
-            <pre style={{ background: '#1e1e1e', color: '#d4d4d4', padding: 12, borderRadius: 4, marginTop: 4 }}>
-              {preview.nginx}
-            </pre>
-          </div>
-        )}
-        <Text strong>docker-compose.yml</Text>
-        <pre style={{ background: '#1e1e1e', color: '#d4d4d4', padding: 12, borderRadius: 4, marginTop: 4 }}>
-          {preview.compose}
-        </pre>
-      </Modal>
+        </Col>
+      </Row>
     </div>
   )
 }
