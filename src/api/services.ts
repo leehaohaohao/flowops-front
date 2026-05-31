@@ -30,6 +30,15 @@ export function uploadJar(serviceId: number, file: File): Promise<ApiResponse<st
   })
 }
 
+export function uploadBinary(serviceId: number, file: File): Promise<ApiResponse<string>> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('type', 'binary')
+  return request.post(`/api/deploy/upload/${serviceId}`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
 export function uploadDist(serviceId: number, file: File): Promise<ApiResponse<null>> {
   const form = new FormData()
   form.append('file', file)

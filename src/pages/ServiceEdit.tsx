@@ -16,11 +16,12 @@ import {
   Typography,
   Upload,
 } from 'antd'
-import { MinusCircleOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons'
+import { MinusCircleOutlined, PlusOutlined, InboxOutlined } from '@ant-design/icons'
 import {
   createService,
   getService,
   updateService,
+  uploadBinary,
   uploadDist,
   uploadJar,
 } from '@/api/services'
@@ -40,18 +41,31 @@ interface ProxyRule {
 
 interface ServiceConfig {
   backend?: {
+    runtime?: string
     baseImage: string
     startupCommand: string
     envVars: Record<string, string>
     dataMount?: { containerPath: string; hostDir: string }
   }
   frontend?: {
+    runtime?: string
     baseImage: string
     backendUrl: string
     proxyRules: ProxyRule[]
     customNginxConfig: string | null
     nginxListenPort: number
   }
+}
+
+const backendRuntimes: Record<string, { label: string; baseImage: string; startupCommand: string }> = {
+  java: { label: 'Java', baseImage: 'openjdk:17-jdk-slim', startupCommand: 'java -jar /app/app.jar' },
+  go: { label: 'Go', baseImage: 'golang:1.26.3-alpine', startupCommand: '/app/app' },
+}
+
+const frontendRuntimes: Record<string, { label: string }> = {
+  vue: { label: 'Vue' },
+  react: { label: 'React' },
+  static: { label: '静态页面' },
 }
 
 const defaultProxyDirectives = (path: string, target: string): ProxyDirective[] => [
@@ -109,9 +123,14 @@ function generatePreview(
 
   if ((type === 'backend' || type === 'fullstack') && config.backend) {
     const b = config.backend
+    const runtime = b.runtime || 'java'
     const allPorts = type === 'fullstack' ? backendPorts : portMappings
     const exposePorts = [...new Set(allPorts.map((m) => m.containerPort))].join(' ')
-    dockerfile = `FROM ${b.baseImage}\nWORKDIR /app\nCOPY app.jar /app/app.jar\nEXPOSE ${exposePorts}`
+    if (runtime === 'go') {
+      dockerfile = `FROM ${b.baseImage}\nWORKDIR /app\nCOPY app /app/app\nRUN chmod +x /app/app\nEXPOSE ${exposePorts}`
+    } else {
+      dockerfile = `FROM ${b.baseImage}\nWORKDIR /app\nCOPY app.jar /app/app.jar\nEXPOSE ${exposePorts}`
+    }
     for (const [k, v] of Object.entries(b.envVars || {})) {
       dockerfile += `\nENV ${k}=${v}`
     }
@@ -175,6 +194,8 @@ export default function ServiceEdit() {
   const [preview, setPreview] = useState({ dockerfile: '', nginx: '', compose: '' })
   const [useCustomNginx, setUseCustomNginx] = useState(false)
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null)
+  const [backendRuntime, setBackendRuntime] = useState<string>('java')
+  const [frontendRuntime, setFrontendRuntime] = useState<string>('vue')
 
   const isEdit = !!id
   const currentProjectId = projectId || (loadedProjectId ? String(loadedProjectId) : null)
@@ -197,6 +218,11 @@ export default function ServiceEdit() {
         const envVars = config.backend?.envVars
           ? Object.entries(config.backend.envVars).map(([k, v]) => ({ key: k, value: v }))
           : []
+
+        const beRuntime = config.backend?.runtime || 'java'
+        const feRuntime = config.frontend?.runtime || 'vue'
+        setBackendRuntime(beRuntime)
+        setFrontendRuntime(feRuntime)
 
         let portMappings: Array<{ hostPort?: number; containerPort: number; primary?: boolean; expose?: boolean; label?: string; target?: string }> = []
         try {
@@ -222,11 +248,13 @@ export default function ServiceEdit() {
           remark: svc.remark || '',
           serviceType: svc.serviceType,
           port: primaryPort?.hostPort || svc.port,
-          backendBaseImage: config.backend?.baseImage || 'openjdk:17-jdk-slim',
-          backendStartupCommand: config.backend?.startupCommand || 'java -jar /app/app.jar',
+          backendRuntime: beRuntime,
+          backendBaseImage: config.backend?.baseImage || backendRuntimes[beRuntime]?.baseImage || 'openjdk:17-jdk-slim',
+          backendStartupCommand: config.backend?.startupCommand || backendRuntimes[beRuntime]?.startupCommand || 'java -jar /app/app.jar',
           envVars,
           dataMountContainerPath: config.backend?.dataMount?.containerPath || '',
           dataMountHostDir: config.backend?.dataMount?.hostDir || './data',
+          frontendRuntime: feRuntime,
           frontendBaseImage: config.frontend?.baseImage || 'nginx:alpine',
           frontendBackendUrl: config.frontend?.backendUrl || '',
           proxyRules: config.frontend?.proxyRules || [],
@@ -249,6 +277,7 @@ export default function ServiceEdit() {
         if (item.key) envVars[item.key] = item.value || ''
       }
       config.backend = {
+        runtime: backendRuntime,
         baseImage: values.backendBaseImage || 'openjdk:17-jdk-slim',
         startupCommand: values.backendStartupCommand || 'java -jar /app/app.jar',
         envVars,
@@ -263,6 +292,7 @@ export default function ServiceEdit() {
 
     if (serviceType === 'frontend' || serviceType === 'fullstack') {
       config.frontend = {
+        runtime: frontendRuntime,
         baseImage: values.frontendBaseImage || 'nginx:alpine',
         backendUrl: values.frontendBackendUrl || '',
         proxyRules: values.proxyRules || [],
@@ -326,6 +356,16 @@ export default function ServiceEdit() {
     if (!id) { message.warning('请先保存服务'); return }
     try {
       await uploadJar(Number(id), file)
+      message.success('上传成功')
+    } catch (err) {
+      message.error((err as Error).message || '上传失败')
+    }
+  }
+
+  const handleUploadBinary = async (file: File) => {
+    if (!id) { message.warning('请先保存服务'); return }
+    try {
+      await uploadBinary(Number(id), file)
       message.success('上传成功')
     } catch (err) {
       message.error((err as Error).message || '上传失败')
@@ -438,6 +478,21 @@ export default function ServiceEdit() {
         {showBackend && (
           <Card title="后端配置" size="small" style={{ marginBottom: 16 }}>
             <Space style={{ display: 'flex', gap: 16 }} align="start" wrap>
+              <Form.Item name="backendRuntime" label="运行时" initialValue="java" style={{ width: 160 }}>
+                <Select
+                  options={Object.entries(backendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
+                  onChange={(val: string) => {
+                    setBackendRuntime(val)
+                    const preset = backendRuntimes[val]
+                    if (preset) {
+                      form.setFieldsValue({
+                        backendBaseImage: preset.baseImage,
+                        backendStartupCommand: preset.startupCommand,
+                      })
+                    }
+                  }}
+                />
+              </Form.Item>
               <Form.Item name="backendBaseImage" label="基础镜像" initialValue="openjdk:17-jdk-slim" style={{ width: 240 }}>
                 <Input />
               </Form.Item>
@@ -489,6 +544,12 @@ export default function ServiceEdit() {
         {showFrontend && (
           <Card title="前端配置" size="small" style={{ marginBottom: 16 }}>
             <Space style={{ display: 'flex', gap: 16 }} align="start" wrap>
+              <Form.Item name="frontendRuntime" label="运行时" initialValue="vue" style={{ width: 160 }}>
+                <Select
+                  options={Object.entries(frontendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
+                  onChange={(val: string) => setFrontendRuntime(val)}
+                />
+              </Form.Item>
               <Form.Item name="frontendBaseImage" label="基础镜像" initialValue="nginx:alpine" style={{ width: 240 }}>
                 <Input />
               </Form.Item>
@@ -640,29 +701,47 @@ export default function ServiceEdit() {
           <Space size="large" wrap>
             {showBackend && (
               <div>
-                <Text>上传 JAR 文件</Text>
-                <div style={{ marginTop: 8 }}>
-                  <Upload
-                    beforeUpload={(file) => { handleUploadJar(file); return false }}
-                    showUploadList={false}
-                    accept=".jar"
-                  >
-                    <Button icon={<UploadOutlined />}>选择 JAR 文件</Button>
-                  </Upload>
+                <Text strong>后端产物</Text>
+                <div style={{ marginTop: 8, width: 280 }}>
+                  {backendRuntime === 'go' ? (
+                    <Upload.Dragger
+                      beforeUpload={(file) => { handleUploadBinary(file); return false }}
+                      showUploadList={false}
+                      multiple={false}
+                    >
+                      <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                      <p className="ant-upload-text">拖拽或点击上传二进制文件</p>
+                      <p className="ant-upload-hint">Go 编译产物</p>
+                    </Upload.Dragger>
+                  ) : (
+                    <Upload.Dragger
+                      beforeUpload={(file) => { handleUploadJar(file); return false }}
+                      showUploadList={false}
+                      accept=".jar"
+                      multiple={false}
+                    >
+                      <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                      <p className="ant-upload-text">拖拽或点击上传 JAR 文件</p>
+                      <p className="ant-upload-hint">Java 打包产物</p>
+                    </Upload.Dragger>
+                  )}
                 </div>
               </div>
             )}
             {showFrontend && (
               <div>
-                <Text>上传前端 dist (zip)</Text>
-                <div style={{ marginTop: 8 }}>
-                  <Upload
+                <Text strong>前端产物</Text>
+                <div style={{ marginTop: 8, width: 280 }}>
+                  <Upload.Dragger
                     beforeUpload={(file) => { handleUploadDist(file); return false }}
                     showUploadList={false}
                     accept=".zip"
+                    multiple={false}
                   >
-                    <Button icon={<UploadOutlined />}>选择 ZIP 文件</Button>
-                  </Upload>
+                    <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                    <p className="ant-upload-text">拖拽或点击上传前端 dist (zip)</p>
+                    <p className="ant-upload-hint">前端构建产物压缩包</p>
+                  </Upload.Dragger>
                 </div>
               </div>
             )}

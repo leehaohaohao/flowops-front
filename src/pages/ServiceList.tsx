@@ -30,6 +30,21 @@ const serviceTypeMap: Record<string, string> = {
   fullstack: '前后端一体',
 }
 
+const runtimeColorMap: Record<string, string> = {
+  java: 'orange',
+  go: 'cyan',
+  vue: 'green',
+  react: 'blue',
+}
+
+const runtimeLabelMap: Record<string, string> = {
+  java: 'Java',
+  go: 'Go',
+  vue: 'Vue',
+  react: 'React',
+  static: '静态页面',
+}
+
 export default function ServiceList() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
@@ -92,6 +107,31 @@ export default function ServiceList() {
       dataIndex: 'serviceType',
       width: 120,
       render: (val: string) => serviceTypeMap[val] || val,
+    },
+    {
+      title: '语言',
+      width: 180,
+      render: (_, record) => {
+        try {
+          const config = JSON.parse(record.serviceConfig || '{}')
+          const tags: React.ReactNode[] = []
+          if (config.backend?.runtime) {
+            const rt = config.backend.runtime
+            tags.push(<Tag key="be" color={runtimeColorMap[rt] || 'default'}>{runtimeLabelMap[rt] || rt}</Tag>)
+          } else if (record.serviceType === 'backend' || record.serviceType === 'fullstack') {
+            tags.push(<Tag key="be" color="orange">Java</Tag>)
+          }
+          if (config.frontend?.runtime) {
+            const rt = config.frontend.runtime
+            tags.push(<Tag key="fe" color={runtimeColorMap[rt] || 'default'}>{runtimeLabelMap[rt] || rt}</Tag>)
+          } else if (record.serviceType === 'frontend' || record.serviceType === 'fullstack') {
+            tags.push(<Tag key="fe" color="green">Vue</Tag>)
+          }
+          return tags.length > 0 ? tags : '-'
+        } catch {
+          return '-'
+        }
+      },
     },
     {
       title: '端口映射',
