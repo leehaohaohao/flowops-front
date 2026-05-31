@@ -400,7 +400,7 @@ export default function ServiceEdit() {
       <Row gutter={24}>
         {/* Left column - Form */}
         <Col span={14}>
-          <Form form={form} layout="vertical" initialValues={{ serviceType: 'backend', portMappings: [{ hostPort: 8080, containerPort: 8080, label: 'HTTP', primary: true }] }}>
+          <Form form={form} layout="vertical" initialValues={{ serviceType: 'backend', backendRuntime: 'java', backendBaseImage: 'openjdk:17-jdk-slim', backendStartupCommand: 'java -jar /app/app.jar', frontendRuntime: 'vue', frontendBaseImage: 'nginx:alpine', nginxListenPort: 80, portMappings: [{ hostPort: 8080, containerPort: 8080, label: 'HTTP', primary: true }] }}>
             {/* Basic info - 3 column grid */}
             <Row gutter={16}>
               <Col span={8}>
@@ -495,7 +495,7 @@ export default function ServiceEdit() {
               <Card title="后端配置" size="small" style={{ marginBottom: 16 }}>
                 <Row gutter={16}>
                   <Col span={8}>
-                    <Form.Item name="backendRuntime" label="运行时" initialValue="java">
+                    <Form.Item name="backendRuntime" label="运行时">
                       <Select
                         options={Object.entries(backendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
                         onChange={(val: string) => {
@@ -530,12 +530,12 @@ export default function ServiceEdit() {
                         <>
                           <Row gutter={16}>
                             <Col span={12}>
-                              <Form.Item name="backendBaseImage" label="基础镜像" initialValue="openjdk:17-jdk-slim">
+                              <Form.Item name="backendBaseImage" label="基础镜像">
                                 <Input />
                               </Form.Item>
                             </Col>
                             <Col span={12}>
-                              <Form.Item name="backendStartupCommand" label="启动命令" initialValue="java -jar /app/app.jar">
+                              <Form.Item name="backendStartupCommand" label="启动命令">
                                 <Input />
                               </Form.Item>
                             </Col>
@@ -589,7 +589,7 @@ export default function ServiceEdit() {
               <Card title="前端配置" size="small" style={{ marginBottom: 16 }}>
                 <Row gutter={16}>
                   <Col span={8}>
-                    <Form.Item name="frontendRuntime" label="运行时" initialValue="vue">
+                    <Form.Item name="frontendRuntime" label="运行时">
                       <Select
                         options={Object.entries(frontendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
                         onChange={(val: string) => setFrontendRuntime(val)}
@@ -620,12 +620,12 @@ export default function ServiceEdit() {
                       children: (
                         <Row gutter={16}>
                           <Col span={8}>
-                            <Form.Item name="frontendBaseImage" label="基础镜像" initialValue="nginx:alpine">
+                            <Form.Item name="frontendBaseImage" label="基础镜像">
                               <Input />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
-                            <Form.Item name="nginxListenPort" label="Nginx 监听端口" initialValue={80}>
+                            <Form.Item name="nginxListenPort" label="Nginx 监听端口">>
                               <InputNumber style={{ width: '100%' }} />
                             </Form.Item>
                           </Col>
