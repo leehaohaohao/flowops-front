@@ -43,6 +43,7 @@ export interface Project {
   isDefault?: number
   memberCount?: number
   serviceCount?: number
+  runningCount?: number
   createTime: string
   updateTime?: string
 }
