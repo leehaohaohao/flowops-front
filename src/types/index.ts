@@ -78,6 +78,12 @@ export interface AggregatedAccess {
   items: Array<{ id: number; permCode: string; createTime: string }>
 }
 
+export interface LogFileInfo {
+  filename: string
+  size: number
+  lastModified: string
+}
+
 export interface PortMapping {
   hostPort?: number
   containerPort: number

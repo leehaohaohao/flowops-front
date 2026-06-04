@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, message, Space, Table, Typography } from 'antd'
 import type { TableProps } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
-import { getLogList } from '@/api/logs'
+import { getLogFiles } from '@/api/logs'
 import { env } from '@/config/env'
 
 const { Title } = Typography
@@ -16,7 +16,7 @@ export default function DeployLogs() {
 
   const fetchList = () => {
     setLoading(true)
-    getLogList()
+    getLogFiles(0, 'deploy', '')
       .then((res) => setFiles(res.data))
       .catch((err) => message.error((err as Error).message || '获取日志列表失败'))
       .finally(() => setLoading(false))

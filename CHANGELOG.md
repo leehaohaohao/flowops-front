@@ -2,6 +2,10 @@
 
 ## 2.4.0 (2026-06-04)
 
+### 新功能
+
+- 日志 API 层重构：`getLogFiles`、`getLogDates`、`getLogContent` 按 serviceId/type/date 维度查询
+
 ### 优化
 
 - 项目列表从表格改为卡片网格布局，支持响应式三栏/两栏/单栏排列
