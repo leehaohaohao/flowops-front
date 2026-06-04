@@ -46,6 +46,7 @@ interface ServiceConfig {
     startupCommand: string
     envVars: Record<string, string>
     dataMount?: { containerPath: string; hostDir: string }
+    appLogPath?: string
   }
   frontend?: {
     runtime?: string
@@ -253,6 +254,7 @@ export default function ServiceEdit() {
           envVars,
           dataMountContainerPath: config.backend?.dataMount?.containerPath || '',
           dataMountHostDir: config.backend?.dataMount?.hostDir || './data',
+          appLogPath: config.backend?.appLogPath || '',
           frontendRuntime: feRuntime,
           frontendBaseImage: config.frontend?.baseImage || 'nginx:alpine',
           frontendBackendUrl: config.frontend?.backendUrl || '',
@@ -286,6 +288,9 @@ export default function ServiceEdit() {
           containerPath: values.dataMountContainerPath,
           hostDir: values.dataMountHostDir || './data',
         }
+      }
+      if (values.appLogPath) {
+        config.backend.appLogPath = values.appLogPath
       }
     }
 
@@ -511,9 +516,14 @@ export default function ServiceEdit() {
                       />
                     </Form.Item>
                   </Col>
-                  <Col span={16}>
+                  <Col span={8}>
                     <Form.Item name="dataMountContainerPath" label="数据持久化（容器目录）" extra="留空则不挂载">
                       <Input placeholder="/app/data" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item name="appLogPath" label="应用日志路径（容器内）" extra="留空则不采集应用日志">
+                      <Input placeholder="/app/logs" />
                     </Form.Item>
                   </Col>
                 </Row>

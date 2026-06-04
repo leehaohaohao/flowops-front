@@ -1,5 +1,28 @@
 # Changelog
 
+> 本项目遵循 [语义化版本（SemVer）](https://semver.org/lang/zh-CN/) 规范，格式为 `Major.Minor.Patch`。
+>
+> - **Major**：重大变更，由维护者主观决定
+> - **Minor**：新增功能特性、新增模块、模块级重构
+> - **Patch**：接口字段新增、小优化、Bug 修复、依赖升级
+
+## 2.5.0 (2026-06-04)
+
+### 新功能
+
+- DeployLogs 页面重写：支持项目→服务→类型（部署日志/应用日志）→日期四级筛选
+- 新增 LogViewer 组件：共享深色日志展示区，支持自动滚动
+- 新增 LogDrawer 组件：从 ServiceList 直接打开 70% 宽度抽屉查看部署日志和实时跟踪
+- ServiceEdit 后端配置新增"应用日志路径"字段（`appLogPath`）
+
+### 优化
+
+- ServiceList 日志按钮改为打开 LogDrawer 抽屉，不再跳转页面
+- 日志文件列表与内容区左右分栏展示
+- LogDrawer 实时跟踪支持 WebSocket JSON 协议，token 通过 URL 参数传递
+
+---
+
 ## 2.4.0 (2026-06-04)
 
 ### 新功能

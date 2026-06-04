@@ -1,123 +1,183 @@
-import { useEffect, useRef, useState } from 'react'
-import { Button, message, Space, Table, Typography } from 'antd'
+import { useEffect, useState } from 'react'
+import { Col, DatePicker, message, Row, Select, Table, Tabs, Typography } from 'antd'
 import type { TableProps } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
-import { getLogFiles } from '@/api/logs'
-import { env } from '@/config/env'
+import { getLogContent, getLogDates, getLogFiles } from '@/api/logs'
+import { getProjectList } from '@/api/projects'
+import { getServiceList } from '@/api/services'
+import LogViewer from '@/components/LogViewer'
+import type { DeployService, Project } from '@/types'
+import dayjs from 'dayjs'
 
 const { Title } = Typography
 
 export default function DeployLogs() {
+  const [projects, setProjects] = useState<Project[]>([])
+  const [allServices, setAllServices] = useState<DeployService[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null)
+  const [logType, setLogType] = useState<'deploy' | 'app'>('deploy')
+  const [dates, setDates] = useState<string[]>([])
+  const [selectedDate, setSelectedDate] = useState<string>('')
   const [files, setFiles] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
   const [activeFile, setActiveFile] = useState<string | null>(null)
-  const [logContent, setLogContent] = useState('点击上方日志文件查看内容')
-  const wsRef = useRef<WebSocket | null>(null)
+  const [logContent, setLogContent] = useState('')
+  const [loadingContent, setLoadingContent] = useState(false)
+  const [loadingFiles, setLoadingFiles] = useState(false)
 
-  const fetchList = () => {
-    setLoading(true)
-    getLogFiles(0, 'deploy', '')
-      .then((res) => setFiles(res.data))
-      .catch((err) => message.error((err as Error).message || '获取日志列表失败'))
-      .finally(() => setLoading(false))
-  }
-
+  // Load projects and services on mount
   useEffect(() => {
-    fetchList()
-    return () => {
-      wsRef.current?.close()
-    }
+    getProjectList()
+      .then((res) => setProjects(res.data || []))
+      .catch(() => message.error('获取项目列表失败'))
+    getServiceList()
+      .then((res) => setAllServices(res.data || []))
+      .catch(() => message.error('获取服务列表失败'))
   }, [])
 
-  const viewLog = (filename: string) => {
-    wsRef.current?.close()
-    setActiveFile(filename)
-    setLogContent('加载中...')
+  // Reset service when project changes
+  useEffect(() => {
+    setSelectedServiceId(null)
+  }, [selectedProjectId])
 
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${location.host}/ws/logs`)
-    wsRef.current = ws
-
-    ws.onopen = () => ws.send(filename)
-
-    ws.onmessage = (e) => {
-      setLogContent((prev) => {
-        if (prev === '加载中...') return e.data
-        return prev + e.data
+  // Fetch dates when service/type changes
+  useEffect(() => {
+    if (!selectedServiceId) {
+      setDates([])
+      setSelectedDate('')
+      return
+    }
+    getLogDates(selectedServiceId, logType)
+      .then((res) => {
+        const d = res.data || []
+        setDates(d)
+        setSelectedDate(d.length > 0 ? d[d.length - 1] : '')
       })
-    }
+      .catch(() => {
+        setDates([])
+        setSelectedDate('')
+      })
+  }, [selectedServiceId, logType])
 
-    ws.onerror = () => {
-      setLogContent('WebSocket 连接失败，请重试')
+  // Fetch files when date changes
+  useEffect(() => {
+    if (!selectedServiceId || !selectedDate) {
+      setFiles([])
+      setActiveFile(null)
+      setLogContent('')
+      return
+    }
+    setLoadingFiles(true)
+    getLogFiles(selectedServiceId, logType, selectedDate)
+      .then((res) => {
+        setFiles(res.data || [])
+        setActiveFile(null)
+        setLogContent('')
+      })
+      .catch(() => setFiles([]))
+      .finally(() => setLoadingFiles(false))
+  }, [selectedServiceId, logType, selectedDate])
+
+  const viewFile = async (filename: string) => {
+    if (!selectedServiceId || !selectedDate) return
+    setActiveFile(filename)
+    setLogContent('')
+    setLoadingContent(true)
+    try {
+      const res = await getLogContent(selectedServiceId, logType, selectedDate, filename)
+      setLogContent(res.data)
+    } catch (err) {
+      setLogContent('加载失败: ' + (err as Error).message)
+    } finally {
+      setLoadingContent(false)
     }
   }
 
-  const downloadUrl = (filename: string) => {
-    const base = env.apiBaseUrl || ''
-    return `${base}/api/logs/content?filename=${encodeURIComponent(filename)}`
-  }
+  const filteredServices = selectedProjectId
+    ? allServices.filter((s) => s.projectId === selectedProjectId)
+    : allServices
 
   const columns: TableProps<string>['columns'] = [
     {
-      title: '日志文件',
+      title: '文件名',
       dataIndex: 'toString',
       render: (_, filename) => (
-        <a onClick={() => viewLog(filename)} style={{ cursor: 'pointer' }}>
+        <a
+          onClick={() => viewFile(filename)}
+          style={{
+            cursor: 'pointer',
+            color: activeFile === filename ? '#1677ff' : undefined,
+            fontWeight: activeFile === filename ? 500 : undefined,
+          }}
+        >
           {filename}
         </a>
-      ),
-    },
-    {
-      title: '操作',
-      width: 100,
-      render: (_, filename) => (
-        <Button size="small" icon={<DownloadOutlined />} href={downloadUrl(filename)}>
-          下载
-        </Button>
       ),
     },
   ]
 
   return (
     <div>
-      <Title level={4}>日志查看</Title>
+      <Title level={4} style={{ marginBottom: 16 }}>日志查看</Title>
 
-      <div style={{ marginTop: 16 }}>
-        <Title level={5}>部署日志列表</Title>
-        <Table
-          columns={columns}
-          dataSource={files}
-          rowKey={(f) => f}
-          loading={loading}
-          pagination={false}
-          size="small"
-          locale={{ emptyText: '暂无日志' }}
+      {/* Filter bar */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+        <Select
+          placeholder="选择项目"
+          value={selectedProjectId}
+          onChange={setSelectedProjectId}
+          allowClear
+          style={{ width: 180 }}
+          options={projects.map((p) => ({ value: p.id, label: p.name }))}
+        />
+        <Select
+          placeholder="选择服务"
+          value={selectedServiceId}
+          onChange={setSelectedServiceId}
+          allowClear
+          style={{ width: 180 }}
+          options={filteredServices.map((s) => ({ value: s.id, label: s.name }))}
+          disabled={!selectedProjectId && allServices.length > 20}
+        />
+        <Tabs
+          activeKey={logType}
+          onChange={(key) => setLogType(key as 'deploy' | 'app')}
+          items={[
+            { key: 'deploy', label: '部署日志' },
+            { key: 'app', label: '应用日志' },
+          ]}
+          style={{ marginBottom: 0 }}
+        />
+        <DatePicker
+          value={selectedDate ? dayjs(selectedDate) : null}
+          onChange={(d) => setSelectedDate(d ? d.format('YYYY-MM-dd') : '')}
+          allowClear={false}
+          disabledDate={(d) => {
+            const formatted = d.format('YYYY-MM-dd')
+            return dates.length > 0 && !dates.includes(formatted)
+          }}
+          placeholder="选择日期"
         />
       </div>
 
-      <div style={{ marginTop: 24 }}>
-        <Space style={{ marginBottom: 8 }}>
-          <Title level={5} style={{ margin: 0 }}>实时日志</Title>
-          {activeFile && <span style={{ color: '#999', fontSize: 13 }}>- {activeFile}</span>}
-        </Space>
-        <pre
-          style={{
-            background: '#1e1e1e',
-            color: '#d4d4d4',
-            padding: 16,
-            borderRadius: 4,
-            maxHeight: 500,
-            overflow: 'auto',
-            fontSize: 13,
-            fontFamily: "'Cascadia Code','Fira Code','Consolas',monospace",
-            lineHeight: 1.5,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-all',
-          }}
-        >
-          {logContent}
-        </pre>
-      </div>
+      {/* Content area */}
+      <Row gutter={16}>
+        <Col span={6}>
+          <div style={{ border: '1px solid #f0f0f0', borderRadius: 4, padding: 8, height: 'calc(100vh - 280px)', overflow: 'auto' }}>
+            <Table
+              columns={columns}
+              dataSource={files}
+              rowKey={(f) => f}
+              loading={loadingFiles}
+              pagination={false}
+              size="small"
+              locale={{ emptyText: selectedServiceId ? '暂无日志' : '请先选择服务' }}
+            />
+          </div>
+        </Col>
+        <Col span={18}>
+          <LogViewer content={logContent} loading={loadingContent} />
+        </Col>
+      </Row>
     </div>
   )
 }

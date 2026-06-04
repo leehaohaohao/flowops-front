@@ -19,6 +19,7 @@ import {
 } from '@/api/services'
 import { getProject } from '@/api/projects'
 import { UserContext } from '@/App'
+import LogDrawer from '@/components/LogDrawer'
 import { hasPermission } from '@/utils/permission'
 import type { DeployService } from '@/types'
 
@@ -52,6 +53,9 @@ export default function ServiceList() {
   const [list, setList] = useState<DeployService[]>([])
   const [loading, setLoading] = useState(true)
   const [projectName, setProjectName] = useState('')
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerServiceId, setDrawerServiceId] = useState(0)
+  const [drawerServiceName, setDrawerServiceName] = useState('')
 
   if (!userInfo) return null
 
@@ -180,7 +184,7 @@ export default function ServiceList() {
               </Button>
             )}
             {canView && (
-              <Button size="small" onClick={() => navigate(`/projects/${projectId}/services/${record.id}/logs`)}>
+              <Button size="small" onClick={() => { setDrawerServiceId(record.id); setDrawerServiceName(record.name); setDrawerOpen(true) }}>
                 日志
               </Button>
             )}
@@ -237,6 +241,12 @@ export default function ServiceList() {
         )}
       </div>
       <Table columns={columns} dataSource={list} rowKey="id" loading={loading} pagination={false} />
+      <LogDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        serviceId={drawerServiceId}
+        serviceName={drawerServiceName}
+      />
     </div>
   )
 }
