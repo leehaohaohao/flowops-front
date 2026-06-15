@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, DatePicker, Drawer, List, message, Select, Space, Tabs, Typography } from 'antd'
+import { Button, DatePicker, Drawer, List, Space, Tabs, Typography } from 'antd'
 import { FullscreenOutlined } from '@ant-design/icons'
-import { getContainerLogs, getLogContent, getLogDates, getLogFiles } from '@/api/logs'
+import { getLogContent, getLogDates, getLogFiles } from '@/api/logs'
 import LogViewer from '@/components/LogViewer'
 import dayjs from 'dayjs'
 
