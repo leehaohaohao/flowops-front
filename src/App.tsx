@@ -15,6 +15,7 @@ import RoleList from '@/pages/RoleList'
 import CrossAccess from '@/pages/CrossAccess'
 import DeployLogs from '@/pages/DeployLogs'
 import ContainerLogs from '@/pages/ContainerLogs'
+import NodeList from '@/pages/NodeList'
 import MainLayout from '@/layouts/MainLayout'
 import '@/styles/global.css'
 
@@ -78,6 +79,7 @@ const router = createHashRouter([
       { path: 'services/:id', element: <ServiceEdit /> },
       { path: 'projects/:projectId/services/:id/logs', element: <ContainerLogs /> },
       { path: 'logs', element: <DeployLogs /> },
+      { path: 'nodes', element: <NodeList /> },
       { path: 'users', element: <UserList /> },
       { path: 'roles', element: <RoleList /> },
       { path: 'access', element: <CrossAccess /> },

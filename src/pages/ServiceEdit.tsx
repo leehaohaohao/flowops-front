@@ -25,6 +25,8 @@ import {
   uploadDist,
   uploadJar,
 } from '@/api/services'
+import { getNodeList } from '@/api/nodes'
+import type { NodeInfo } from '@/types'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -196,6 +198,13 @@ export default function ServiceEdit() {
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null)
   const [backendRuntime, setBackendRuntime] = useState<string>('java')
   const [frontendRuntime, setFrontendRuntime] = useState<string>('vue')
+  const [nodeList, setNodeList] = useState<NodeInfo[]>([])
+
+  useEffect(() => {
+    getNodeList()
+      .then((res) => setNodeList(res.data))
+      .catch(() => {})
+  }, [])
 
   const isEdit = !!id
   const currentProjectId = projectId || (loadedProjectId ? String(loadedProjectId) : null)
@@ -233,21 +242,20 @@ export default function ServiceEdit() {
             portMappings = [{ containerPort: 80, label: 'Web端口', primary: true }]
           } else if (svc.serviceType === 'fullstack') {
             portMappings = [
-              { hostPort: svc.port || 80, containerPort: 80, label: 'Web端口', primary: true, target: 'frontend' },
+              { hostPort: 80, containerPort: 80, label: 'Web端口', primary: true, target: 'frontend' },
               { containerPort: 8080, expose: true, label: '内部API', target: 'backend' },
             ]
           } else {
-            portMappings = [{ hostPort: svc.port || 8080, containerPort: 8080, label: 'HTTP', primary: true }]
+            portMappings = [{ hostPort: 8080, containerPort: 8080, label: 'HTTP', primary: true }]
           }
         }
-        const primaryPort = portMappings.find((p) => p.primary) || portMappings[0]
 
         form.setFieldsValue({
           name: svc.name,
           deployName: svc.deployName || '',
           remark: svc.remark || '',
           serviceType: svc.serviceType,
-          port: primaryPort?.hostPort || svc.port,
+          nodeId: svc.nodeId || '',
           backendRuntime: beRuntime,
           backendBaseImage: config.backend?.baseImage || backendRuntimes[beRuntime]?.baseImage || 'openjdk:17-jdk-slim',
           backendStartupCommand: config.backend?.startupCommand || backendRuntimes[beRuntime]?.startupCommand || 'java -jar /app/app.jar',
@@ -317,15 +325,14 @@ export default function ServiceEdit() {
       if (mappings.length > 0 && !mappings.some((m: { primary?: boolean }) => m.primary)) {
         mappings[0].primary = true
       }
-      const primaryMapping = mappings.find((m: { primary?: boolean }) => m.primary) || mappings[0]
       const data = {
         name: values.name,
         deployName: values.deployName,
         remark: values.remark || undefined,
-        port: primaryMapping?.hostPort || 0,
         portMappings: JSON.stringify(mappings),
         serviceType: values.serviceType,
         serviceConfig: JSON.stringify(config),
+        nodeId: values.nodeId || undefined,
         ...(projectId ? { projectId: Number(projectId) } : {}),
       }
       if (isEdit) {
@@ -405,10 +412,10 @@ export default function ServiceEdit() {
       <Row gutter={24}>
         {/* Left column - Form */}
         <Col span={14}>
-          <Form form={form} layout="vertical" initialValues={{ serviceType: 'backend', backendRuntime: 'java', backendBaseImage: 'openjdk:17-jdk-slim', backendStartupCommand: 'java -jar /app/app.jar', frontendRuntime: 'vue', frontendBaseImage: 'nginx:alpine', nginxListenPort: 80, portMappings: [{ hostPort: 8080, containerPort: 8080, label: 'HTTP', primary: true }] }}>
-            {/* Basic info - 3 column grid */}
+          <Form form={form} layout="vertical" initialValues={{ serviceType: 'backend', backendRuntime: 'java', backendBaseImage: 'openjdk:17-jdk-slim', backendStartupCommand: 'java -jar /app/app.jar', frontendRuntime: 'vue', frontendBaseImage: 'nginx:alpine', nginxListenPort: 80, nodeId: '', portMappings: [{ hostPort: 8080, containerPort: 8080, label: 'HTTP', primary: true }] }}>
+            {/* Basic info - 4 column grid */}
             <Row gutter={16}>
-              <Col span={8}>
+              <Col span={6}>
                 <Form.Item name="serviceType" label="服务类型" rules={[{ required: true }]}>
                   <Select
                     onChange={(val) => setServiceType(val)}
@@ -420,12 +427,12 @@ export default function ServiceEdit() {
                   />
                 </Form.Item>
               </Col>
-              <Col span={8}>
+              <Col span={6}>
                 <Form.Item name="name" label="服务名称" rules={[{ required: true }]}>
                   <Input />
                 </Form.Item>
               </Col>
-              <Col span={8}>
+              <Col span={6}>
                 <Form.Item
                   name="deployName"
                   label="部署名称"
@@ -437,6 +444,22 @@ export default function ServiceEdit() {
                   tooltip="用于 Docker Compose 项目命名和文件目录"
                 >
                   <Input />
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item
+                  name="nodeId"
+                  label="目标节点"
+                  tooltip="部署执行的 Docker 节点；不选则在本机执行，auto 由后端按负载自动调度"
+                >
+                  <Select
+                    placeholder="本机（默认）"
+                    options={[
+                      { value: '', label: '本机（默认）' },
+                      { value: 'auto', label: '自动调度 (auto)' },
+                      ...nodeList.map((n) => ({ value: n.runnerId, label: `${n.hostname} (${n.ip})` })),
+                    ]}
+                  />
                 </Form.Item>
               </Col>
             </Row>

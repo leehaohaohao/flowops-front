@@ -29,6 +29,9 @@ export function getLogContent(
   })
 }
 
-export function getContainerLogs(serviceId: number, tail = 500): Promise<ApiResponse<string>> {
-  return request.get(`/api/deploy/logs/${serviceId}`, { params: { tail } })
+export function getContainerLogs(
+  serviceId: number,
+  params?: { tail?: number; since?: string; until?: string; timestamps?: boolean },
+): Promise<ApiResponse<string>> {
+  return request.get(`/api/logs/container/${serviceId}`, { params })
 }

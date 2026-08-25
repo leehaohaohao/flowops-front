@@ -141,10 +141,8 @@ export default function ServiceList() {
       title: '端口映射',
       dataIndex: 'portMappings',
       width: 280,
-      render: (val: string, record) => {
-        if (!val) {
-          return record.port ? <Tag color="blue">{record.port}</Tag> : '-'
-        }
+      render: (val: string) => {
+        if (!val) return '-'
         try {
           const mappings = JSON.parse(val) as Array<{ hostPort?: number; containerPort: number; primary?: boolean; expose?: boolean; label?: string }>
           return mappings.map((m, i) => {
@@ -153,8 +151,18 @@ export default function ServiceList() {
             return <Tag key={i}>{m.hostPort}:{m.containerPort}</Tag>
           })
         } catch {
-          return record.port ? <Tag color="blue">{record.port}</Tag> : '-'
+          return '-'
         }
+      },
+    },
+    {
+      title: '节点',
+      dataIndex: 'nodeId',
+      width: 140,
+      render: (val?: string) => {
+        if (!val) return <Tag>本机</Tag>
+        if (val === 'auto') return <Tag color="purple">自动调度</Tag>
+        return <Tag color="blue">{val}</Tag>
       },
     },
     {

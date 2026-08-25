@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { Button, Layout, Menu, Tag } from 'antd'
 import {
   CloudServerOutlined,
+  ClusterOutlined,
   DashboardOutlined,
   FileTextOutlined,
   KeyOutlined,
@@ -21,6 +22,7 @@ function buildMenuItems(userInfo: UserInfo) {
     { key: '/dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
     { key: '/projects', icon: <CloudServerOutlined />, label: '服务管理' },
     { key: '/logs', icon: <FileTextOutlined />, label: '日志查看' },
+    { key: '/nodes', icon: <ClusterOutlined />, label: '节点管理' },
   ]
 
   if (userInfo.superAdmin) {

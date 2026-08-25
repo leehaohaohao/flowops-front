@@ -1,12 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, DatePicker, Drawer, List, Space, Tabs, Typography } from 'antd'
+import { Button, DatePicker, Drawer, Input, List, Select, Switch, Tabs, Typography } from 'antd'
 import { FullscreenOutlined } from '@ant-design/icons'
 import { getLogContent, getLogDates, getLogFiles } from '@/api/logs'
 import LogViewer from '@/components/LogViewer'
 import dayjs from 'dayjs'
 
 const { Text } = Typography
+
+const tailOptions = [
+  { value: 100, label: '100' },
+  { value: 200, label: '200' },
+  { value: 500, label: '500' },
+  { value: 1000, label: '1000' },
+  { value: 2000, label: '2000' },
+]
+
+const sinceOptions = [
+  { value: '', label: '不限' },
+  { value: '5m', label: '最近 5 分钟' },
+  { value: '15m', label: '最近 15 分钟' },
+  { value: '30m', label: '最近 30 分钟' },
+  { value: '1h', label: '最近 1 小时' },
+  { value: '2h', label: '最近 2 小时' },
+  { value: '6h', label: '最近 6 小时' },
+  { value: '12h', label: '最近 12 小时' },
+  { value: '24h', label: '最近 24 小时' },
+]
 
 interface LogDrawerProps {
   open: boolean
@@ -27,6 +47,10 @@ export default function LogDrawer({ open, onClose, serviceId, serviceName }: Log
   const [loadingContent, setLoadingContent] = useState(false)
 
   // Realtime state
+  const [tail, setTail] = useState(500)
+  const [since, setSince] = useState('')
+  const [timestamps, setTimestamps] = useState(false)
+  const [grep, setGrep] = useState('')
   const [following, setFollowing] = useState(false)
   const [followContent, setFollowContent] = useState('')
   const [followStatus, setFollowStatus] = useState('')
@@ -95,7 +119,14 @@ export default function LogDrawer({ open, onClose, serviceId, serviceName }: Log
     wsRef.current = ws
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ serviceId, tail: 500, follow: true }))
+      ws.send(JSON.stringify({
+        serviceId,
+        tail,
+        follow: true,
+        since: since || undefined,
+        timestamps: timestamps || undefined,
+        grep: grep || undefined,
+      }))
     }
 
     ws.onmessage = (e) => {
@@ -217,7 +248,13 @@ export default function LogDrawer({ open, onClose, serviceId, serviceName }: Log
       label: '实时跟踪',
       children: (
         <div>
-          <Space style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+            <span>行数</span>
+            <Select value={tail} onChange={setTail} options={tailOptions} style={{ width: 90 }} size="small" />
+            <span>时间范围</span>
+            <Select value={since} onChange={setSince} options={sinceOptions} style={{ width: 130 }} size="small" />
+            <span>时间戳</span>
+            <Switch size="small" checked={timestamps} onChange={setTimestamps} />
             <Button
               type="primary"
               size="small"
@@ -231,8 +268,17 @@ export default function LogDrawer({ open, onClose, serviceId, serviceName }: Log
             </Button>
             <Button size="small" onClick={handleClearFollow}>清空</Button>
             {followStatus && <Text type="secondary">{followStatus}</Text>}
-          </Space>
-          <LogViewer content={followContent} height="calc(100vh - 280px)" />
+          </div>
+          <Input.Search
+            placeholder="关键词过滤（服务端过滤）"
+            value={grep}
+            onChange={(e) => setGrep(e.target.value)}
+            onSearch={handleFollow}
+            style={{ maxWidth: 360, marginBottom: 8 }}
+            size="small"
+            allowClear
+          />
+          <LogViewer content={followContent} height="calc(100vh - 300px)" highlight={grep || undefined} />
         </div>
       ),
     },
@@ -243,7 +289,7 @@ export default function LogDrawer({ open, onClose, serviceId, serviceName }: Log
       title={`日志 — ${serviceName}`}
       open={open}
       onClose={onClose}
-      width="70%"
+      size="large"
       destroyOnClose
       extra={
         <Button icon={<FullscreenOutlined />} onClick={goFullscreen}>

@@ -100,14 +100,24 @@ export interface DeployService {
   deployName: string
   remark?: string
   projectId: number
-  projectName: string
-  port: number
+  nodeId?: string
   volumeDir: string
   serviceType: 'backend' | 'frontend' | 'fullstack'
   serviceConfig: string
   portMappings?: string
-  extraPorts?: string
   status: 'running' | 'stopped'
   createTime: string
   updateTime: string
+}
+
+export interface NodeInfo {
+  runnerId: string
+  hostname: string
+  ip: string
+  version: string
+  lastHeartbeatTime: number
+  online: boolean
+  runningTasks: number
+  cpuUsage: number
+  memoryUsage: number
 }

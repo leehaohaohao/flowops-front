@@ -151,11 +151,12 @@ export default function DeployLogs() {
           value={selectedDate ? dayjs(selectedDate) : null}
           onChange={(d) => setSelectedDate(d ? d.format('YYYY-MM-dd') : '')}
           allowClear={false}
+          disabled={!selectedServiceId}
           disabledDate={(d) => {
             const formatted = d.format('YYYY-MM-dd')
             return dates.length > 0 && !dates.includes(formatted)
           }}
-          placeholder="选择日期"
+          placeholder="请先选择服务"
         />
       </div>
 
