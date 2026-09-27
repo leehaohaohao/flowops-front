@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
+  Alert,
   Button,
   Card,
   Collapse,
@@ -26,7 +27,15 @@ import {
   uploadJar,
 } from '@/api/services'
 import { getNodeList } from '@/api/nodes'
-import type { NodeInfo } from '@/types'
+import {
+  getDefaultNetwork,
+  getProjectNetworks,
+  grantNetworkToProject,
+} from '@/api/networks'
+import NetworkFormDrawer from '@/components/NetworkFormDrawer'
+import type { NetworkFormMode } from '@/components/NetworkFormDrawer'
+import { UserContext } from '@/App'
+import type { NodeInfo, ProjectNetwork } from '@/types'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -69,6 +78,95 @@ const frontendRuntimes: Record<string, { label: string }> = {
   vue: { label: 'Vue' },
   react: { label: 'React' },
   static: { label: '静态页面' },
+}
+
+const FRONTEND_DEFAULT_IMAGE = 'nginx:alpine'
+
+interface ServiceFormValues {
+  name?: string
+  deployName?: string
+  remark?: string
+  serviceType?: string
+  nodeId?: string
+  networkId?: number | null
+  portMappings?: Array<{
+    hostPort?: number
+    containerPort: number
+    primary?: boolean
+    expose?: boolean
+    label?: string
+    target?: string
+  }>
+  backendRuntime?: string
+  backendBaseImage?: string
+  backendStartupCommand?: string
+  envVars?: Array<{ key?: string; value?: string }>
+  dataMountContainerPath?: string
+  dataMountHostDir?: string
+  appLogPath?: string
+  frontendRuntime?: string
+  frontendBaseImage?: string
+  frontendBackendUrl?: string
+  proxyRules?: ProxyRule[]
+  customNginxConfig?: string
+  nginxListenPort?: number
+  [key: string]: unknown
+}
+
+/** 按运行时解析后端预设（镜像/启动命令默认值的唯一来源） */
+function resolveBackendPreset(runtime?: string) {
+  return backendRuntimes[runtime || 'java'] || backendRuntimes.java
+}
+
+/**
+ * 从完整表单值序列化 serviceConfig。
+ * - 运行时以表单值为唯一数据源；
+ * - 镜像/启动命令为空时按**当前运行时**预设补齐（Go 补 Go 预设，不再补 Java 默认值）；
+ * - 非空自定义值原样保留。
+ */
+function buildServiceConfig(
+  values: ServiceFormValues,
+  options: { serviceType: string; useCustomNginx: boolean },
+): ServiceConfig {
+  const { serviceType, useCustomNginx } = options
+  const config: ServiceConfig = {}
+
+  if (serviceType === 'backend' || serviceType === 'fullstack') {
+    const runtime = values.backendRuntime || 'java'
+    const preset = resolveBackendPreset(runtime)
+    const envVars: Record<string, string> = {}
+    for (const item of values.envVars || []) {
+      if (item?.key) envVars[item.key] = item.value || ''
+    }
+    config.backend = {
+      runtime,
+      baseImage: values.backendBaseImage?.trim() || preset.baseImage,
+      startupCommand: values.backendStartupCommand?.trim() || preset.startupCommand,
+      envVars,
+    }
+    if (values.dataMountContainerPath) {
+      config.backend.dataMount = {
+        containerPath: values.dataMountContainerPath,
+        hostDir: values.dataMountHostDir || './data',
+      }
+    }
+    if (values.appLogPath) {
+      config.backend.appLogPath = values.appLogPath
+    }
+  }
+
+  if (serviceType === 'frontend' || serviceType === 'fullstack') {
+    config.frontend = {
+      runtime: values.frontendRuntime || 'vue',
+      baseImage: values.frontendBaseImage?.trim() || FRONTEND_DEFAULT_IMAGE,
+      backendUrl: values.frontendBackendUrl || '',
+      proxyRules: values.proxyRules || [],
+      customNginxConfig: useCustomNginx ? values.customNginxConfig || null : null,
+      nginxListenPort: values.nginxListenPort || 80,
+    }
+  }
+
+  return config
 }
 
 const defaultProxyDirectives = (path: string, target: string): ProxyDirective[] => [
@@ -191,14 +289,24 @@ export default function ServiceEdit() {
   const { id, projectId } = useParams()
   const navigate = useNavigate()
   const [form] = Form.useForm()
-  const [serviceType, setServiceType] = useState<string>('backend')
+  const userInfo = useContext(UserContext)
+  const isSuperAdmin = !!userInfo?.superAdmin
+  // F0：运行时与服务类型统一以表单存储为唯一数据源，避免与表单值漂移
+  const serviceType = (Form.useWatch('serviceType', form) as string) ?? 'backend'
+  const backendRuntime = (Form.useWatch('backendRuntime', form) as string) ?? 'java'
+  // 目标节点非空（runner / auto）时共享网络不可选：节点与网络互斥
+  const selectedNodeId = (Form.useWatch('nodeId', form) as string | undefined) ?? ''
+  const networkDisabled = !!selectedNodeId
   const [saving, setSaving] = useState(false)
+  const [legacyGoJavaMismatch, setLegacyGoJavaMismatch] = useState(false)
   const [preview, setPreview] = useState({ dockerfile: '', nginx: '', compose: '' })
   const [useCustomNginx, setUseCustomNginx] = useState(false)
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null)
-  const [backendRuntime, setBackendRuntime] = useState<string>('java')
-  const [frontendRuntime, setFrontendRuntime] = useState<string>('vue')
   const [nodeList, setNodeList] = useState<NodeInfo[]>([])
+  const [projectNetworks, setProjectNetworks] = useState<ProjectNetwork[]>([])
+  const [networkFormOpen, setNetworkFormOpen] = useState(false)
+  const [networkFormMode, setNetworkFormMode] = useState<NetworkFormMode>('create')
+  const [originalNetworkId, setOriginalNetworkId] = useState<number | null>(null)
 
   useEffect(() => {
     getNodeList()
@@ -209,12 +317,46 @@ export default function ServiceEdit() {
   const isEdit = !!id
   const currentProjectId = projectId || (loadedProjectId ? String(loadedProjectId) : null)
 
+  // F0：历史缺陷记录——runtime=go 但镜像/启动命令恰为 Java 默认组合。
+  // 检测在编辑回显时完成（高级选项收起时镜像字段未挂载，useWatch 读不到值）；
+  // 只提示并允许一键恢复，读取时不静默改数据，也不覆盖用户自定义值。
+  const restoreGoDefaults = () => {
+    form.setFieldsValue({
+      backendRuntime: 'go',
+      backendBaseImage: backendRuntimes.go.baseImage,
+      backendStartupCommand: backendRuntimes.go.startupCommand,
+    })
+    setLegacyGoJavaMismatch(false)
+    message.success('已恢复 Go 默认值，保存后生效')
+  }
+
+  const dismissLegacyGoJavaHint = () => setLegacyGoJavaMismatch(false)
+
+  const loadProjectNetworks = (projectIdValue: string) => {
+    getProjectNetworks(Number(projectIdValue))
+      .then((res) => setProjectNetworks(res.data || []))
+      .catch(() => setProjectNetworks([]))
+  }
+
+  // 共享网络候选：仅本项目已授权且主节点实际存在的网络；新建时预选项目默认值
+  useEffect(() => {
+    if (!currentProjectId) return
+    loadProjectNetworks(currentProjectId)
+    if (isEdit) return
+    getDefaultNetwork(Number(currentProjectId))
+      .then((res) => {
+        if (res.data?.networkId != null) {
+          form.setFieldsValue({ networkId: res.data.networkId })
+        }
+      })
+      .catch(() => {})
+  }, [currentProjectId, isEdit, form])
+
   useEffect(() => {
     if (!id) return
     getService(Number(id))
       .then((res) => {
         const svc = res.data
-        setServiceType(svc.serviceType)
         setLoadedProjectId(svc.projectId)
 
         let config: ServiceConfig = {}
@@ -230,8 +372,7 @@ export default function ServiceEdit() {
 
         const beRuntime = config.backend?.runtime || 'java'
         const feRuntime = config.frontend?.runtime || 'vue'
-        setBackendRuntime(beRuntime)
-        setFrontendRuntime(feRuntime)
+        const bePreset = resolveBackendPreset(beRuntime)
 
         let portMappings: Array<{ hostPort?: number; containerPort: number; primary?: boolean; expose?: boolean; label?: string; target?: string }> = []
         try {
@@ -256,9 +397,10 @@ export default function ServiceEdit() {
           remark: svc.remark || '',
           serviceType: svc.serviceType,
           nodeId: svc.nodeId || '',
+          networkId: svc.networkId ?? undefined,
           backendRuntime: beRuntime,
-          backendBaseImage: config.backend?.baseImage || backendRuntimes[beRuntime]?.baseImage || 'openjdk:17-jdk-slim',
-          backendStartupCommand: config.backend?.startupCommand || backendRuntimes[beRuntime]?.startupCommand || 'java -jar /app/app.jar',
+          backendBaseImage: config.backend?.baseImage || bePreset.baseImage,
+          backendStartupCommand: config.backend?.startupCommand || bePreset.startupCommand,
           envVars,
           dataMountContainerPath: config.backend?.dataMount?.containerPath || '',
           dataMountHostDir: config.backend?.dataMount?.hostDir || './data',
@@ -272,59 +414,36 @@ export default function ServiceEdit() {
           portMappings,
         })
         setUseCustomNginx(!!config.frontend?.customNginxConfig)
+        setOriginalNetworkId(svc.networkId ?? null)
+        setLegacyGoJavaMismatch(
+          beRuntime === 'go' &&
+            config.backend?.baseImage === backendRuntimes.java.baseImage &&
+            config.backend?.startupCommand === backendRuntimes.java.startupCommand,
+        )
       })
       .catch((err) => message.error((err as Error).message || '加载服务失败'))
   }, [id, form])
 
-  const collectConfig = (): ServiceConfig => {
-    const values = form.getFieldsValue()
-    const config: ServiceConfig = {}
+  // F0：读取完整表单存储（getFieldsValue(true) 含未挂载字段），作为唯一数据源。
+  // 高级选项折叠时镜像/启动命令字段未挂载，无参数 getFieldsValue() 会丢失它们。
+  const readFormValues = (): ServiceFormValues =>
+    (form.getFieldsValue(true) as ServiceFormValues) || {}
 
-    if (serviceType === 'backend' || serviceType === 'fullstack') {
-      const envVars: Record<string, string> = {}
-      for (const item of values.envVars || []) {
-        if (item.key) envVars[item.key] = item.value || ''
-      }
-      config.backend = {
-        runtime: backendRuntime,
-        baseImage: values.backendBaseImage || 'openjdk:17-jdk-slim',
-        startupCommand: values.backendStartupCommand || 'java -jar /app/app.jar',
-        envVars,
-      }
-      if (values.dataMountContainerPath) {
-        config.backend.dataMount = {
-          containerPath: values.dataMountContainerPath,
-          hostDir: values.dataMountHostDir || './data',
-        }
-      }
-      if (values.appLogPath) {
-        config.backend.appLogPath = values.appLogPath
-      }
-    }
-
-    if (serviceType === 'frontend' || serviceType === 'fullstack') {
-      config.frontend = {
-        runtime: frontendRuntime,
-        baseImage: values.frontendBaseImage || 'nginx:alpine',
-        backendUrl: values.frontendBackendUrl || '',
-        proxyRules: values.proxyRules || [],
-        customNginxConfig: useCustomNginx ? values.customNginxConfig || null : null,
-        nginxListenPort: values.nginxListenPort || 80,
-      }
-    }
-
-    return config
-  }
+  const collectConfig = (): ServiceConfig =>
+    buildServiceConfig(readFormValues(), { serviceType, useCustomNginx })
 
   const handleSave = async () => {
     try {
-      const values = await form.validateFields()
+      // 先触发挂载字段的校验；业务值一律取自完整表单存储
+      await form.validateFields()
+      const values = readFormValues()
       setSaving(true)
       const config = collectConfig()
-      const mappings = (values.portMappings || []).filter((m: { containerPort?: number }) => m.containerPort)
-      if (mappings.length > 0 && !mappings.some((m: { primary?: boolean }) => m.primary)) {
+      const mappings = (values.portMappings || []).filter((m) => m.containerPort)
+      if (mappings.length > 0 && !mappings.some((m) => m.primary)) {
         mappings[0].primary = true
       }
+      const networkId = values.networkId ?? undefined
       const data = {
         name: values.name,
         deployName: values.deployName,
@@ -333,11 +452,15 @@ export default function ServiceEdit() {
         serviceType: values.serviceType,
         serviceConfig: JSON.stringify(config),
         nodeId: values.nodeId || undefined,
+        networkId,
         ...(projectId ? { projectId: Number(projectId) } : {}),
       }
       if (isEdit) {
         await updateService(Number(id), data)
         message.success('更新成功')
+        if ((networkId ?? null) !== originalNetworkId) {
+          message.info('共享网络变更需重新部署服务后生效')
+        }
       } else {
         await createService(data)
         message.success('创建成功')
@@ -356,10 +479,28 @@ export default function ServiceEdit() {
   }
 
   const handlePreview = () => {
-    const values = form.getFieldsValue()
+    const values = readFormValues()
     const config = collectConfig()
-    const mappings = (values.portMappings || []).filter((m: { containerPort?: number }) => m.containerPort)
+    const mappings = (values.portMappings || []).filter((m) => m.containerPort)
     setPreview(generatePreview(config, serviceType, mappings))
+  }
+
+  const openNetworkForm = (mode: NetworkFormMode) => {
+    setNetworkFormMode(mode)
+    setNetworkFormOpen(true)
+  }
+
+  // 超管在服务编辑页新建/导入网络后自动授权给当前项目并选中；授权失败时分别说明两步结果
+  const handleNetworkFormSuccess = async (networkId: number) => {
+    if (!currentProjectId) return
+    try {
+      await grantNetworkToProject(networkId, Number(currentProjectId))
+      message.success('已自动授权本项目使用新网络')
+      form.setFieldsValue({ networkId })
+    } catch (err) {
+      message.error(`网络已创建，但授权本项目失败：${(err as Error).message || '未知错误'}`)
+    }
+    loadProjectNetworks(currentProjectId)
   }
 
   const handleUploadJar = async (file: File) => {
@@ -418,7 +559,6 @@ export default function ServiceEdit() {
               <Col span={6}>
                 <Form.Item name="serviceType" label="服务类型" rules={[{ required: true }]}>
                   <Select
-                    onChange={(val) => setServiceType(val)}
                     options={[
                       { value: 'backend', label: '纯后端' },
                       { value: 'frontend', label: '纯前端' },
@@ -457,8 +597,48 @@ export default function ServiceEdit() {
                     options={[
                       { value: '', label: '本机（默认）' },
                       { value: 'auto', label: '自动调度 (auto)' },
-                      ...nodeList.map((n) => ({ value: n.runnerId, label: `${n.hostname} (${n.ip})` })),
+                      ...nodeList.map((n) => ({ value: n.runnerId, label: n.runnerId })),
                     ]}
+                    onChange={(val: string) => {
+                      // 节点与共享网络互斥：切到 runner / auto 时清空网络选择
+                      if (val) form.setFieldsValue({ networkId: undefined })
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            {/* 共享网络：仅本机部署可选，候选为本项目已授权且主节点存在的网络 */}
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item
+                  name="networkId"
+                  label="共享网络"
+                  tooltip="同一共享网络内的容器可通过唯一别名互访监听端口；共享网络仅支持本机部署"
+                  extra={
+                    networkDisabled ? (
+                      '已选择远程节点或自动调度，共享网络不可用'
+                    ) : isSuperAdmin ? (
+                      <Space size={4}>
+                        <a onClick={() => openNetworkForm('create')}>新建网络</a>
+                        <span>/</span>
+                        <a onClick={() => openNetworkForm('import')}>导入网络</a>
+                        <span>并授权本项目</span>
+                      </Space>
+                    ) : (
+                      '共享网络需超级管理员授权给本项目'
+                    )
+                  }
+                >
+                  <Select
+                    allowClear
+                    disabled={networkDisabled}
+                    placeholder="不加入共享网络"
+                    options={projectNetworks.map((n) => ({
+                      value: n.id,
+                      label: `${n.displayName || n.name}（${n.name}）`,
+                    }))}
+                    notFoundContent="本项目暂无可用的共享网络"
                   />
                 </Form.Item>
               </Col>
@@ -521,13 +701,27 @@ export default function ServiceEdit() {
             {/* Backend config */}
             {showBackend && (
               <Card title="后端配置" size="small" style={{ marginBottom: 16 }}>
+                {legacyGoJavaMismatch && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                    title="该服务运行时为 Go，但基础镜像与启动命令仍是 Java 默认值"
+                    description="直接保存会继续沿用这组不匹配的配置。可一键恢复 Go 默认：golang:1.26.3-alpine / /app/app。"
+                    action={
+                      <Button size="small" onClick={restoreGoDefaults}>
+                        恢复 Go 默认
+                      </Button>
+                    }
+                  />
+                )}
                 <Row gutter={16}>
                   <Col span={8}>
                     <Form.Item name="backendRuntime" label="运行时">
                       <Select
                         options={Object.entries(backendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
                         onChange={(val: string) => {
-                          setBackendRuntime(val)
+                          // 切换运行时即写入该运行时预设；值进表单存储，保存/预览/上传控件同源
                           const preset = backendRuntimes[val]
                           if (preset) {
                             form.setFieldsValue({
@@ -535,6 +729,7 @@ export default function ServiceEdit() {
                               backendStartupCommand: preset.startupCommand,
                             })
                           }
+                          dismissLegacyGoJavaHint()
                         }}
                       />
                     </Form.Item>
@@ -564,12 +759,12 @@ export default function ServiceEdit() {
                           <Row gutter={16}>
                             <Col span={12}>
                               <Form.Item name="backendBaseImage" label="基础镜像">
-                                <Input />
+                                <Input onChange={dismissLegacyGoJavaHint} />
                               </Form.Item>
                             </Col>
                             <Col span={12}>
                               <Form.Item name="backendStartupCommand" label="启动命令">
-                                <Input />
+                                <Input onChange={dismissLegacyGoJavaHint} />
                               </Form.Item>
                             </Col>
                           </Row>
@@ -625,7 +820,6 @@ export default function ServiceEdit() {
                     <Form.Item name="frontendRuntime" label="运行时">
                       <Select
                         options={Object.entries(frontendRuntimes).map(([k, v]) => ({ value: k, label: v.label }))}
-                        onChange={(val: string) => setFrontendRuntime(val)}
                       />
                     </Form.Item>
                   </Col>
@@ -854,6 +1048,13 @@ export default function ServiceEdit() {
           </div>
         </Col>
       </Row>
+
+      <NetworkFormDrawer
+        open={networkFormOpen}
+        mode={networkFormMode}
+        onClose={() => setNetworkFormOpen(false)}
+        onSuccess={handleNetworkFormSuccess}
+      />
     </div>
   )
 }

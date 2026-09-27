@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { Button, Layout, Menu, Tag } from 'antd'
 import {
+  ApartmentOutlined,
   CloudServerOutlined,
   ClusterOutlined,
   DashboardOutlined,
@@ -27,6 +28,7 @@ function buildMenuItems(userInfo: UserInfo) {
 
   if (userInfo.superAdmin) {
     items.push(
+      { key: '/networks', icon: <ApartmentOutlined />, label: '网络管理' },
       { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
       { key: '/access', icon: <KeyOutlined />, label: '跨项目授权' },
     )
