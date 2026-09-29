@@ -1,5 +1,13 @@
 import request from '@/utils/request'
-import type { ApiResponse, NodeInfo, RegisteredNode, SshTarget, SshTestResult } from '@/types'
+import type {
+  ApiResponse,
+  NodeInfo,
+  PackageDistribution,
+  RegisteredNode,
+  RunnerPackage,
+  SshTarget,
+  SshTestResult,
+} from '@/types'
 
 export function getNodeList(): Promise<ApiResponse<NodeInfo[]>> {
   return request.get('/api/nodes')
@@ -58,4 +66,52 @@ export function saveNodeSsh(
 /** 用已保存的设置执行一次只读连接验证；连接是否成功由 resultCode 表达 */
 export function testNodeSsh(runnerId: string): Promise<ApiResponse<SshTestResult>> {
   return request.post(`/api/nodes/registry/${runnerId}/ssh/test`)
+}
+
+// ==================== 执行器发布包（仅超级管理员） ====================
+
+/** 上传发布包；1 GiB 级上传需覆盖全局 100 秒超时 */
+export function uploadRunnerPackage(file: File): Promise<ApiResponse<RunnerPackage>> {
+  const form = new FormData()
+  form.append('file', file)
+  return request.post('/api/nodes/packages', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 0,
+  })
+}
+
+/** 主节点已存储的发布包列表（按上传时间倒序） */
+export function getRunnerPackages(): Promise<ApiResponse<RunnerPackage[]>> {
+  return request.get('/api/nodes/packages')
+}
+
+export function getRunnerPackage(sha256: string): Promise<ApiResponse<RunnerPackage>> {
+  return request.get(`/api/nodes/packages/${sha256}`)
+}
+
+/** 触发一次分发（异步，立即返回 PENDING 记录）；传输可能远超全局超时 */
+export function distributeRunnerPackage(
+  runnerId: string,
+  sha256: string,
+): Promise<ApiResponse<PackageDistribution>> {
+  return request.post(
+    `/api/nodes/registry/${runnerId}/packages/${sha256}/distribute`,
+    undefined,
+    { timeout: 0 },
+  )
+}
+
+/** 该节点各包的最新一次分发记录（按记录 id 倒序） */
+export function getNodePackageDistributions(
+  runnerId: string,
+): Promise<ApiResponse<PackageDistribution[]>> {
+  return request.get(`/api/nodes/registry/${runnerId}/packages`)
+}
+
+/** 轮询单条分发记录 */
+export function getPackageDistribution(
+  runnerId: string,
+  id: number,
+): Promise<ApiResponse<PackageDistribution>> {
+  return request.get(`/api/nodes/registry/${runnerId}/packages/distributions/${id}`)
 }

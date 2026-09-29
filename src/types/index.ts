@@ -191,3 +191,52 @@ export interface SshTarget {
   lastTest: SshTestResult | null
   updateTime: string
 }
+
+/** 主节点已存储的执行器发布包（P4 只展示，不解析包内容） */
+export interface RunnerPackage {
+  /** 包摘要（小写十六进制 64 位），不可变标识 */
+  sha256: string
+  fileName: string
+  version: string
+  os: string
+  arch: string
+  sizeBytes: number
+  gitCommit: string
+  imageReference: string
+  imageId: string
+  dockerCliVersion: string
+  composeVersion: string
+  formatVersion: number
+  uploadedBy: string
+  uploadedAt: string
+  /** 仅上传响应出现：true 表示索引行此前已存在 */
+  existing?: boolean
+  /** 仅上传响应出现：true 表示本次重写了主节点磁盘上的包文件（按摘要修复） */
+  repaired?: boolean
+}
+
+/** 一次发布包分发记录（异步状态机） */
+export interface PackageDistribution {
+  id: number
+  runnerId: string
+  packageSha256: string
+  version: string
+  fileName: string
+  sizeBytes: number
+  /** PENDING / UPLOADING / VERIFYING / SUCCEEDED / FAILED */
+  status: string
+  /** 目标机已有同摘要包而跳过传输即成功 */
+  alreadyPresent: boolean
+  /** 失败机器码；成功为 null */
+  errorCode: string | null
+  /** 失败中文说明，可直接展示 */
+  errorMessage: string | null
+  /** 目标机正式包路径（固定、非敏感） */
+  remotePath: string | null
+  /** 本次分发绑定的、已通过连接测试的 SSH 配置版本；null = 未绑定（旧记录，必然失败为 SSH_CONFIG_CHANGED） */
+  sshConfigVersion: number | null
+  operator: string
+  startedAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+}
